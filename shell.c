@@ -13,6 +13,7 @@ void cleanup(int signum) {
     free(readHere);
   if (termSet == 1)
     tcsetattr(0, TCSANOW, &backup);
+write(1, "\n", 2);
   exit(1);
 }
 void setupTerminal() {
