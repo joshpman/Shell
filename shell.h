@@ -9,6 +9,7 @@
 #include <termios.h>
 #include <signal.h>
 char* getHomeDirectory();
+void cleanup(int signum);
 void returnHome(char* homeDirectory);
 void writeHeader();
 void processCommand(char* buffer, int bytesRead);

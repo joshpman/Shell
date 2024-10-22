@@ -7,6 +7,7 @@ char *getHomeDirectory() {
   struct passwd *userPasswdFile = getpwuid(callingUserID);
   return userPasswdFile->pw_dir;
 }
+
 void writeHeader() { write(1, shellHeader, strlen(shellHeader)); }
 void processCommand(char *buffer, int bytesRead) {
   int foundSpace = 0;
@@ -60,23 +61,29 @@ void processCommand(char *buffer, int bytesRead) {
   }
   if (strcmp(argumentList[0], "cd") == 0) {
     changeDirectory(argumentList[1]);
+  } else if (strcmp(argumentList[0], "quit") == 0) {
+    for (int i = 0; i < wordCount; i++) {
+      free(argumentList[i]);
+    }
+    cleanup(0);
   } else {
     argumentList[wordCount] = NULL;
     int pipeFD[2];
     pipe(pipeFD);
     pid_t child = fork();
-    if(child==0){
-        dup2(pipeFD[1], 1);
-        close(pipeFD[1]);
-        if( execvp(argumentList[0], argumentList)<0) printf("Exec failed!\n");
+    if (child == 0) {
+      dup2(pipeFD[1], 1);
+      close(pipeFD[1]);
+      if (execvp(argumentList[0], argumentList) < 0)
+        printf("Exec failed!\n");
     }
     close(pipeFD[1]);
-    char* returnData = malloc(sizeof(char)* 64000);
-        waitpid(child, NULL, 0);
+    char *returnData = malloc(sizeof(char) * 64000);
+    waitpid(child, NULL, 0);
     int bytesRead = 0;
-    while(read(pipeFD[0], &returnData[bytesRead], sizeof(returnData))>0){
-        write(1, returnData, strlen(returnData));
-        memset(returnData, 0, sizeof(&returnData));
+    while (read(pipeFD[0], &returnData[bytesRead], sizeof(returnData)) > 0) {
+      write(1, returnData, strlen(returnData));
+      memset(returnData, 0, sizeof(&returnData));
     }
     write(1, returnData, strlen(returnData));
     free(returnData);
@@ -86,7 +93,12 @@ void processCommand(char *buffer, int bytesRead) {
     free(argumentList[i]);
   }
 }
-void changeDirectory(char *newDirectory) {}
+
+void changeDirectory(char *newDirectory) {
+  if (chdir(newDirectory) < 0) {
+    write(2, "cd failed: bad path!\n", 22);
+  }
+}
 void returnHome(char *homeDirectory) {
   printf("Home directory is %s\n", homeDirectory);
   if (chdir(homeDirectory) < 0) {
