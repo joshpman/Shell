@@ -22,7 +22,7 @@ void setupTerminal() {
   terminalSettings.c_lflag &= ~(ICANON | ECHO);
   terminalSettings.c_cc[VMIN] = 1;
   terminalSettings.c_cc[VTIME] = 0;
-  printf("%d", tcsetattr(0, TCSANOW, &terminalSettings));
+  tcsetattr(0, TCSANOW, &terminalSettings);
   termSet = 1;
 }
 int main(int argc, char **argv) {
@@ -34,6 +34,7 @@ int main(int argc, char **argv) {
   char *currentDir = "] ";
   char *userDir = getHomeDirectory();
   printf("Users dir is %s\n", userDir);
+  returnHome(userDir);
   setupTerminal();
   char bufferedText[512];
   memset(bufferedText, 0, sizeof(bufferedText));
@@ -49,16 +50,19 @@ int main(int argc, char **argv) {
       if (bytesIn > 0)
         write(1, &readHere[0], 1); // Echoing user input
 
-      if (readHere[0] == 0x7F) { //If input is a backspace
-        if (inputLength > 0) { //Ensuring there is data to clear
+      if (readHere[0] == 0x7F) { // If input is a backspace
+        if (inputLength > 0) {   // Ensuring there is data to clear
           write(1, "\b \b", 4);
           bufferedText[--inputLength] = '\0';
         }
 
       } else if (strcmp(readHere, "\n") == 0) { // If input is a newline
-	  	processCommand(bufferedText, inputLength);
+        strcat(bufferedText, readHere);
+        inputLength += bytesIn;
+        processCommand(bufferedText, inputLength);
         writeHeader();
         inputLength = 0;
+        memset(bufferedText, 0, sizeof(bufferedText));
       } else { // Else
         strcat(bufferedText, readHere);
         inputLength += bytesIn;
