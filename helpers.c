@@ -26,9 +26,6 @@ void executeCommand(char *argumentList[], int wordCount) {
   if (strcmp(argumentList[0], "cd") == 0) {
     changeDirectory(argumentList[1]);
   } else if (strcmp(argumentList[0], "quit") == 0) {
-    for (int i = 0; i < wordCount; i++) {
-      free(argumentList[i]);
-    }
     cleanup(0);
   } else {
     argumentList[wordCount] = NULL;
@@ -70,9 +67,6 @@ void executeCommand(char *argumentList[], int wordCount) {
       waitpid(child, NULL, 0);
     }
     freeArgumentList();
-    // for (int i = 0; i < wordCount; i++) {
-    //   free(argumentList[i]);
-    // }
     argumentListPtr = 0;
     argCount = 0;
     signal(SIGINT, cleanup);

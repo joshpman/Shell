@@ -1,7 +1,6 @@
 
 #include "shell.h"
 #include <termios.h>
-#define shellHeader "[My-Shell % "
 #define bufferSize 8192
 #define quit "quit"
 char *readHere;
