@@ -1,26 +1,70 @@
 
 #include "shell.h"
-#define shellHeader "[My-Shell"
+#include <termios.h>
+#define shellHeader "[My-Shell % "
 #define bufferSize 8192
-int main(int argc, char **argv){
-	printf("Hello World\n");
-	int nfds = 1;
-	fd_set fileSet;
-	char* readHere;
-	readHere = malloc(sizeof(char) * bufferSize);
-	char* currentDir = "] ";
-	char* userDir = getHomeDirectory();
-	while(1){
-		memset(readHere, 0, sizeof(*readHere));
-		FD_ZERO(&fileSet);
-		FD_SET(0, &fileSet);
-		int selectVal = select(nfds, &fileSet, NULL, NULL, NULL);
-		if(FD_ISSET(0, &fileSet)){
-			read(0, readHere, bufferSize);
-			char curHeader[128];
-			strcpy(curHeader, shellHeader);
-			strcat(curHeader, currentDir);
-			write(1, curHeader, strlen(curHeader));
-		};
-	}
+#define quit "quit"
+char *readHere;
+struct termios backup;
+int memAll, termSet = 0;
+
+void cleanup(int signum) {
+  if (memAll == 1)
+    free(readHere);
+  if (termSet == 1)
+    tcsetattr(0, TCSANOW, &backup);
+  exit(1);
+}
+void setupTerminal() {
+  struct termios terminalSettings;
+  tcgetattr(0, &terminalSettings);
+  tcgetattr(0, &backup);
+  terminalSettings.c_lflag &= ~(ICANON | ECHO);
+  terminalSettings.c_cc[VMIN] = 1;
+  terminalSettings.c_cc[VTIME] = 0;
+  printf("%d", tcsetattr(0, TCSANOW, &terminalSettings));
+  termSet = 1;
+}
+int main(int argc, char **argv) {
+  signal(SIGINT, cleanup);
+  int nfds = 1;
+  fd_set fileSet;
+  readHere = malloc(sizeof(char) * bufferSize);
+  memAll = 1;
+  char *currentDir = "] ";
+  char *userDir = getHomeDirectory();
+  printf("Users dir is %s\n", userDir);
+  setupTerminal();
+  char bufferedText[512];
+  memset(bufferedText, 0, sizeof(bufferedText));
+  int inputLength = 0;
+  writeHeader();
+  while (1) {
+    memset(readHere, 0, sizeof(*readHere));
+    FD_ZERO(&fileSet);
+    FD_SET(0, &fileSet);
+    int selectVal = select(nfds, &fileSet, NULL, NULL, NULL);
+    if (FD_ISSET(0, &fileSet)) {
+      ssize_t bytesIn = read(0, readHere, bufferSize);
+      if (bytesIn > 0)
+        write(1, &readHere[0], 1); // Echoing user input
+
+      if (readHere[0] == 0x7F) { //If input is a backspace
+        if (inputLength > 0) { //Ensuring there is data to clear
+          write(1, "\b \b", 4);
+          bufferedText[--inputLength] = '\0';
+        }
+
+      } else if (strcmp(readHere, "\n") == 0) { // If input is a newline
+	  	processCommand(bufferedText, inputLength);
+        writeHeader();
+        inputLength = 0;
+      } else { // Else
+        strcat(bufferedText, readHere);
+        inputLength += bytesIn;
+      }
+      memset(readHere, 0, sizeof(&readHere));
+    };
+  }
+  free(readHere);
 }
