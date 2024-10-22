@@ -1,12 +1,15 @@
 #include "shell.h"
 #define shellHeader "[My-Shell] "
 char *commands[] = {"cd"};
+int childPID;
+void childSignalHandler(int signum){
+    kill(childPID, SIGINT);
+}
 char *getHomeDirectory() {
   uid_t callingUserID = getuid();
   struct passwd *userPasswdFile = getpwuid(callingUserID);
   return userPasswdFile->pw_dir;
 }
-
 
 void executeCommand(char *argumentList[], int wordCount){
  if (strcmp(argumentList[0], "cd") == 0) {
@@ -21,6 +24,7 @@ void executeCommand(char *argumentList[], int wordCount){
     int pipeFD[2];
     pipe(pipeFD);
     pid_t child = fork();
+    childPID = child;
     if (child == 0) {
       dup2(pipeFD[1], 1);
       close(pipeFD[1]);
@@ -29,6 +33,7 @@ void executeCommand(char *argumentList[], int wordCount){
         exit(1);
       }
     }
+    signal(SIGINT, childSignalHandler);
     close(pipeFD[1]);
     char *returnData = malloc(sizeof(char) * 64000);
     waitpid(child, NULL, 0);
@@ -44,6 +49,7 @@ void executeCommand(char *argumentList[], int wordCount){
   for (int i = 0; i < wordCount; i++) {
     free(argumentList[i]);
   }
+  signal(SIGINT, cleanup);
 }
 
 

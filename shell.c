@@ -9,12 +9,19 @@ struct termios backup;
 int memAll, termSet = 0;
 
 void cleanup(int signum) {
-  if (memAll == 1)
+  if (memAll)
     free(readHere);
-  if (termSet == 1)
+  if (termSet)
     tcsetattr(0, TCSANOW, &backup);
-write(1, "\n", 2);
+  write(1, "\n", 2);
   exit(1);
+}
+void setup() {
+  readHere = malloc(sizeof(char) * bufferSize);
+  memAll = 1;
+  char *userDir = getHomeDirectory();
+  returnHome(userDir);
+  setupTerminal();
 }
 void setupTerminal() {
   struct termios terminalSettings;
@@ -30,16 +37,11 @@ int main(int argc, char **argv) {
   signal(SIGINT, cleanup);
   int nfds = 1;
   fd_set fileSet;
-  readHere = malloc(sizeof(char) * bufferSize);
-  memAll = 1;
   char *currentDir = "] ";
-  char *userDir = getHomeDirectory();
-  printf("Users dir is %s\n", userDir);
-  returnHome(userDir);
-  setupTerminal();
   char bufferedText[512];
   memset(bufferedText, 0, sizeof(bufferedText));
   int inputLength = 0;
+  setup();
   writeHeader();
   while (1) {
     memset(readHere, 0, sizeof(*readHere));
