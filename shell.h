@@ -8,8 +8,10 @@
 #include <pwd.h>
 #include <termios.h>
 #include <signal.h>
+void freeArgumentList();
 char* getHomeDirectory();
 void setupTerminal();
+void autocomplete(char *readHere,int inputLength);
 void cleanup(int signum);
 void returnHome(char* homeDirectory);
 void writeHeader();

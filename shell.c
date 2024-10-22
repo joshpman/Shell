@@ -14,6 +14,7 @@ void cleanup(int signum) {
   if (termSet)
     tcsetattr(0, TCSANOW, &backup);
   write(1, "\n", 2);
+  freeArgumentList();
   exit(1);
 }
 void setup() {
@@ -50,10 +51,11 @@ int main(int argc, char **argv) {
     int selectVal = select(nfds, &fileSet, NULL, NULL, NULL);
     if (FD_ISSET(0, &fileSet)) {
       ssize_t bytesIn = read(0, readHere, bufferSize);
-      if (bytesIn > 0)
+      if (bytesIn > 0 && readHere[0]!=9)
         write(1, &readHere[0], 1); // Echoing user input
-
-      if (readHere[0] == 0x7F) { // If input is a backspace
+      if(readHere[0]==9){
+          autocomplete(readHere, inputLength);
+       }else if (readHere[0] == 0x7F) { // If input is a backspace
         if (inputLength > 0) {   // Ensuring there is data to clear
           write(1, "\b \b", 4);
           bufferedText[--inputLength] = '\0';
