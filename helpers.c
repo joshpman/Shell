@@ -199,8 +199,11 @@ void storeCommand(command *command, int pos) {
   commandHolder[pos] = command;
   commandHolderInit++;
 }
-void freeCommand(int wasError, command *toFree, command *freeNext) {
+void freeCommand(int wasError) {
   for (int i = 0; i < commandHolderInit; i++) {
+    for(int j = 0; j<commandHolder[i]->argumentCount; j++){
+      free(commandHolder[i]->arguments[j]);
+    }
     free(commandHolder[i]->arguments);
     free(commandHolder[i]->outputFile);
     free(commandHolder[i]->inputFile);
@@ -211,26 +214,28 @@ void freeCommand(int wasError, command *toFree, command *freeNext) {
     free(commandHolder[i]);
   }
   if (wasError) {
-    free(toFree);
-    free(freeNext);
     write(2, "Parse error!\n", 14);
   }
 }
+
+/*
+Another hour of hand-to-hand combat with pointers and this is still garbage code
+*/
 void parseCommand() {
   int wordsToCheck = p->entries[p->commandCount - 1].argumentCount;
   commandHolder = malloc(sizeof(command *) * maxCommandChain);
   commandHolderInit = 0;
+  for(int i = 0; i<maxCommandChain; i++){
+    commandHolder[i] = malloc(sizeof(command));
+        memset(commandHolder[i], 0, sizeof(*commandHolder[i]));
+    commandHolder[i]->arguments =  malloc(sizeof(argument *) * maxSubArgs);
+      commandHolderInit++;
+  }
   char *wordBuffer[wordsToCheck];
-  command *currentCommand = malloc(sizeof(command));
-    memset(currentCommand, 0, sizeof(command));
-  currentCommand->arguments = malloc(sizeof(argument *) * maxSubArgs);
-  command *nextCommand = malloc(sizeof(command));
-
-
   memset(&wordBuffer, 0, sizeof(wordBuffer));
 
   int bufPointer = 0;
-
+  int currentCommand = 0;
   for (int i = 0; i < wordsToCheck; i++) {
     char *currentWord = p->entries[p->commandCount - 1].args[i];
     int wordLength = strlen(currentWord);
@@ -238,58 +243,61 @@ void parseCommand() {
       switch (currentWord[0]) {
       case (60): // Represents <
         if (wordLength == 1 && i != wordsToCheck - 1) {
-          currentCommand->inputFile =
+          commandHolder[currentCommand]->inputFile =
               malloc(sizeof(char) *
                      strlen(p->entries[p->commandCount - 1].args[i + 1]));
-          currentCommand->inputFile =
+          commandHolder[currentCommand]->inputFile =
               p->entries[p->commandCount - 1].args[i + 1];
         } else {
-          freeCommand(1, currentCommand, nextCommand);
+          freeCommand(1);
           return;
         }
         break;
       case (62): // Represents >
         if (wordLength == 1 && i != wordsToCheck - 1) {
-          currentCommand->outputFile =
+          commandHolder[currentCommand]->outputFile =
               malloc(sizeof(char) *
                      strlen(p->entries[p->commandCount - 1].args[i + 1]));
-          currentCommand->outputFile =
+          commandHolder[currentCommand]->outputFile =
               p->entries[p->commandCount - 1].args[i + 1];
 
         } else if (wordLength == 2 && currentWord[1] == 62 &&
                    i != wordsToCheck - 1) {
-          currentCommand->outputFile =
+          commandHolder[currentCommand]->outputFile =
               malloc(sizeof(char) *
                      strlen(p->entries[p->commandCount - 1].args[i + 1]));
-          currentCommand->outputFile =
+          commandHolder[currentCommand]->outputFile =
               p->entries[p->commandCount - 1].args[i + 1];
-          currentCommand->append = 1;
+          commandHolder[currentCommand]->append = 1;
 
         } else {
-          freeCommand(1, currentCommand, nextCommand);
+          freeCommand(1);
           return;
         }
       case (38): // Repesents &
         if (wordLength == 1) {
-          currentCommand->backgroundTask = 1;
+          commandHolder[currentCommand]->backgroundTask = 1;
         } else if (wordLength == 2 && i != wordsToCheck - 1) {
-          currentCommand->runNext = nextCommand;
+          commandHolder[currentCommand]->runNext = commandHolder[currentCommand+1];
+          currentCommand++;
         } else {
-          freeCommand(1, currentCommand, nextCommand);
+          freeCommand(1);
           return;
         }
         break;
       case (124): // Represents |
         if (wordLength > 1) {
-          freeCommand(1, currentCommand, nextCommand);
+          freeCommand(1);
           return;
         } else {
-          currentCommand->runNext = nextCommand;
+          commandHolder[currentCommand]->pipeTo = commandHolder[currentCommand+1];
+          currentCommand++;
         }
       default:
-        currentCommand->arguments[bufPointer] = malloc(sizeof(char) * (wordLength + 1)); // Allocate memory for string + null terminator
+        commandHolder[currentCommand]->arguments[bufPointer] = malloc(sizeof(char) * (wordLength + 1)); // Allocate memory for string + null terminator
             currentWord[strlen(currentWord)] = '\0';
-        strcpy(currentCommand->arguments[bufPointer], currentWord);
+        strcpy(commandHolder[currentCommand]->arguments[bufPointer], currentWord);
+        commandHolder[currentCommand]->argumentCount++;
         break;
       }
     }
