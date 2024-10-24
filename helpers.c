@@ -23,11 +23,24 @@ void setupHelper() {
   pInit = 2;
 }
 void executeCommand(){
-  printf("Command list has %d entries\n", commandHolderEntriesUsed);
+  // printf("Command list has %d entries\n", commandHolderEntriesUsed);
+  // printf("This function has %d for pipeTo\n", currentEntry->pipeTo);
+  // printf("This function has %s for outputFile\n", currentEntry->outputFile);
   command *currentEntry = commandHolder[0];
-  printf("This function has %d for pipeTo\n", currentEntry->pipeTo);
-    printf("This function has %s for outputFile\n", currentEntry->outputFile);
-    if(currentEntry->outputFile==NULL) printf("No output file provided\n");
+  int argumentCount = currentEntry->argumentCount;
+  int pipeTo = currentEntry->pipeTo;
+  char* outputFile = currentEntry->outputFile;
+  char* inputFile = currentEntry->inputFile;
+  int argCount = currentEntry->argumentCount;
+  argument* arguments = currentEntry->arguments;
+  int append = currentEntry->append;
+  int runNext = currentEntry->runNext;
+  for(int i = 0; i<argumentCount; i++){
+    printf("argument #%d is %s\n", i, arguments[i]);
+  }
+  // freeCommand(0);
+
+
 }
 void childSignalHandler(int signum) { kill(childPID, SIGINT); }
 void freeArgumentList() {
@@ -49,6 +62,7 @@ void freeArgumentList() {
     free(p);
   }
   storeArgument(0, 0, 3);
+  freeCommand(-1);
 }
 char *getHomeDirectory() {
   uid_t callingUserID = getuid();
@@ -219,6 +233,9 @@ void freeCommand(int wasError) {
   for (int i = 0; i < maxCommandChain; i++) {
     free(commandHolder[i]);
   }
+    if(wasError==-1){
+    free(commandHolder);
+  }
   if (wasError) {
     write(2, "Parse error!\n", 14);
   }
@@ -277,11 +294,14 @@ void parseCommand() {
           commandHolder[currentCommand]->outputFile =
               p->entries[p->commandCount - 1].args[i + 1];
           commandHolder[currentCommand]->append = 1;
+          currentCommand ++;
+                    commandHolderEntriesUsed++;
 
         } else {
           freeCommand(1);
           return;
         }
+        break;
       case (38): // Repesents &
         if (wordLength == 1) {
           commandHolder[currentCommand]->backgroundTask = 1;
@@ -303,10 +323,12 @@ void parseCommand() {
           currentCommand++;
           commandHolderEntriesUsed++;
         }
+        break;
       default:
         commandHolder[currentCommand]->arguments[bufPointer] = malloc(sizeof(char) * (wordLength + 1)); // Allocate memory for string + null terminator
             currentWord[strlen(currentWord)] = '\0';
         strcpy(commandHolder[currentCommand]->arguments[bufPointer], currentWord);
+        bufPointer++;
         commandHolder[currentCommand]->argumentCount++;
         break;
       }

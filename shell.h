@@ -21,6 +21,7 @@ void buildArgs(char *buffer, int bytesRead);
 void storeArgument(int charsInArg, char *argumentBuffer, int status);
 void setupHelper();
 void parseCommand();
+void freeCommand(int wasError);
 //Holds each argume
 typedef char* argument;
 
@@ -49,4 +50,3 @@ typedef struct{
     int pipeTo;
     int runNext;
 } command;
-// argument** args;
