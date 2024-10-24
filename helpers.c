@@ -1,4 +1,5 @@
 #include "shell.h"
+#include <fcntl.h>
 #define shellHeader "[My-Shell] "
 #define historySize 128
 #define maxArguments 128
@@ -22,27 +23,73 @@ void setupHelper() {
   p->entries = malloc(historySize * sizeof(input *));
   pInit = 2;
 }
-void executeCommand(){
+void executeCommand() {
   // printf("Command list has %d entries\n", commandHolderEntriesUsed);
   // printf("This function has %d for pipeTo\n", currentEntry->pipeTo);
   // printf("This function has %s for outputFile\n", currentEntry->outputFile);
   command *currentEntry = commandHolder[0];
   int argumentCount = currentEntry->argumentCount;
   int pipeTo = currentEntry->pipeTo;
-  char* outputFile = currentEntry->outputFile;
-  char* inputFile = currentEntry->inputFile;
+  char *outputFile = currentEntry->outputFile;
+  char *inputFile = currentEntry->inputFile;
   int argCount = currentEntry->argumentCount;
-  argument* arguments = currentEntry->arguments;
+  argument *arguments = currentEntry->arguments;
   int append = currentEntry->append;
   int runNext = currentEntry->runNext;
-  for(int i = 0; i<argumentCount; i++){
+  for (int i = 0; i < argumentCount; i++) {
     printf("argument #%d is %s\n", i, arguments[i]);
   }
-  // freeCommand(0);
+  if (strcmp(arguments[0], "cd") == 0) {
+    changeDirectory(arguments[1]);
+    freeCommand(-1);
+    return;
+  }
+  int pipeFD[2];
+  int outputFD = 1;
+  int inputFD = 0;
+  pipe(pipeFD);
+  if (append && outputFile != NULL) {
+    outputFD = open(outputFile, O_CREAT | O_APPEND | O_RDWR, 0644);
+  } else if (outputFile != NULL) {
+    outputFD = open(outputFile, O_CREAT | O_TRUNC | O_RDWR, 0644);
+  } else {
+    outputFD = 1;
+  }
 
-
+  if (inputFile != NULL) {
+    inputFD = open(inputFile, O_RDONLY, 0644);
+    if (inputFD < 0) {
+      write(2, "Failed to open file!\n", 22);
+    }
+  } else {
+    inputFD = 0;
+  }
+  int i = 0;
+  while(commandHolder[i]->pipeTo>0 && i<=commandHolderEntriesUsed){
+    break;
+  }
+  childPID = fork();
+  if (childPID == 0) {
+    char **execArgs =
+        malloc(sizeof(char *) * (currentEntry->argumentCount + 1));
+    for (int i = 0; i < currentEntry->argumentCount; i++) {
+      execArgs[i] = currentEntry->arguments[i];
+    }
+    execArgs[currentEntry->argumentCount] = NULL;
+    if (execvp(execArgs[0], execArgs) < 0) {
+      write(2, "Exec failed!\n", 14);
+      free(execArgs);
+      exit(-1);
+    }
+    free(execArgs);
+  }
+  if (pipeTo > 0) {
+  }
+  freeCommand(-1);
 }
 void childSignalHandler(int signum) { kill(childPID, SIGINT); }
+
+// Pro memory freeing just don't read any of the code
 void freeArgumentList() {
   if (entriesInitalized >= 0) {
     for (int i = 0; i < entriesInitalized; i++) {
@@ -64,11 +111,13 @@ void freeArgumentList() {
   storeArgument(0, 0, 3);
   freeCommand(-1);
 }
+
 char *getHomeDirectory() {
   uid_t callingUserID = getuid();
   struct passwd *userPasswdFile = getpwuid(callingUserID);
   return userPasswdFile->pw_dir;
 }
+
 void autocomplete(char *readHere, int inputLength) {}
 
 void executeCommand2() {
@@ -221,9 +270,15 @@ void storeCommand(command *command, int pos) {
   commandHolder[pos] = command;
   commandHolderInit++;
 }
+
+/*
+American Function(cuz its the land of the free)
+*/
 void freeCommand(int wasError) {
+  if (commandHolderInit == -1)
+    return;
   for (int i = 0; i < commandHolderInit; i++) {
-    for(int j = 0; j<commandHolder[i]->argumentCount; j++){
+    for (int j = 0; j < commandHolder[i]->argumentCount; j++) {
       free(commandHolder[i]->arguments[j]);
     }
     free(commandHolder[i]->arguments);
@@ -233,10 +288,10 @@ void freeCommand(int wasError) {
   for (int i = 0; i < maxCommandChain; i++) {
     free(commandHolder[i]);
   }
-    if(wasError==-1){
-    free(commandHolder);
-  }
-  if (wasError) {
+  free(commandHolder);
+  commandHolderInit = -1;
+  commandHolderEntriesUsed = 0;
+  if (wasError == 1) {
     write(2, "Parse error!\n", 14);
   }
 }
@@ -248,11 +303,11 @@ void parseCommand() {
   int wordsToCheck = p->entries[p->commandCount - 1].argumentCount;
   commandHolder = malloc(sizeof(command *) * maxCommandChain);
   commandHolderInit = 0;
-  for(int i = 0; i<maxCommandChain; i++){
+  for (int i = 0; i < maxCommandChain; i++) {
     commandHolder[i] = malloc(sizeof(command));
-        memset(commandHolder[i], 0, sizeof(*commandHolder[i]));
-    commandHolder[i]->arguments =  malloc(sizeof(argument *) * maxSubArgs);
-      commandHolderInit++;
+    memset(commandHolder[i], 0, sizeof(*commandHolder[i]));
+    commandHolder[i]->arguments = malloc(sizeof(argument *) * maxSubArgs);
+    commandHolderInit++;
   }
   char *wordBuffer[wordsToCheck];
   memset(&wordBuffer, 0, sizeof(wordBuffer));
@@ -294,8 +349,8 @@ void parseCommand() {
           commandHolder[currentCommand]->outputFile =
               p->entries[p->commandCount - 1].args[i + 1];
           commandHolder[currentCommand]->append = 1;
-          currentCommand ++;
-                    commandHolderEntriesUsed++;
+          currentCommand++;
+          commandHolderEntriesUsed++;
 
         } else {
           freeCommand(1);
@@ -306,7 +361,7 @@ void parseCommand() {
         if (wordLength == 1) {
           commandHolder[currentCommand]->backgroundTask = 1;
         } else if (wordLength == 2 && i != wordsToCheck - 1) {
-          commandHolder[currentCommand]->runNext = currentCommand+1;
+          commandHolder[currentCommand]->runNext = currentCommand + 1;
           currentCommand++;
           commandHolderEntriesUsed++;
         } else {
@@ -319,15 +374,18 @@ void parseCommand() {
           freeCommand(1);
           return;
         } else {
-          commandHolder[currentCommand]->pipeTo = currentCommand+1;
+          commandHolder[currentCommand]->pipeTo = currentCommand + 1;
           currentCommand++;
           commandHolderEntriesUsed++;
         }
         break;
       default:
-        commandHolder[currentCommand]->arguments[bufPointer] = malloc(sizeof(char) * (wordLength + 1)); // Allocate memory for string + null terminator
-            currentWord[strlen(currentWord)] = '\0';
-        strcpy(commandHolder[currentCommand]->arguments[bufPointer], currentWord);
+        commandHolder[currentCommand]->arguments[bufPointer] = malloc(
+            sizeof(char) *
+            (wordLength + 1)); // Allocate memory for string + null terminator
+        currentWord[strlen(currentWord)] = '\0';
+        strcpy(commandHolder[currentCommand]->arguments[bufPointer],
+               currentWord);
         bufPointer++;
         commandHolder[currentCommand]->argumentCount++;
         break;

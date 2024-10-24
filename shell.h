@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <termios.h>
+#include <fcntl.h>
 #include <unistd.h>
 void freeArgumentList();
 char *getHomeDirectory();
