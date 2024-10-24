@@ -1,19 +1,37 @@
-#include <string.h>
-#include <unistd.h>
+#include <pwd.h>
+#include <signal.h>
 #include <stdio.h>
-#include <sys/select.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/select.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <pwd.h>
 #include <termios.h>
-#include <signal.h>
+#include <unistd.h>
 void freeArgumentList();
-char* getHomeDirectory();
+char *getHomeDirectory();
+void changeDirectory(char *newDirectory);
 void setupTerminal();
-void autocomplete(char *readHere,int inputLength);
+void autocomplete(char *readHere, int inputLength);
 void cleanup(int signum);
-void returnHome(char* homeDirectory);
+void returnHome(char *homeDirectory);
 void writeHeader();
-void processCommand(char* buffer, int bytesRead);
-void changeDirectory(char* newDirectory);
+void processCommand(char *buffer, int bytesRead);
+void buildArgs(char *buffer, int bytesRead);
+void storeArgument(int charsInArg, char *argumentBuffer, int status);
+void setupHelper();
+//Holds each argume
+typedef char* argument;
+
+typedef struct{
+    argument* args;
+    int argumentCount;
+} input;
+
+typedef struct {
+  int commandCount;
+  int maxCommands;
+  input *entries;
+} previousInputs;
+
+// argument** args;

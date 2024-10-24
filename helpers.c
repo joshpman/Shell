@@ -1,19 +1,53 @@
 #include "shell.h"
 #define shellHeader "[My-Shell] "
+#define historySize 128
+#define maxArguments 8192
 char *commands[] = {"cd"};
 char **argumentListPtr = 0;
 int argCount = 0;
 int childPID;
-void childSignalHandler(int signum) { 
+previousInputs *p;
+int pInit = 0;
+int entriesInitalized = -1;
+argument **args;
+int arggCount = -1;
+void setupHelper() {
+  p = malloc(sizeof(previousInputs));
+  p->maxCommands = historySize;
+  p->commandCount = 0;
+  pInit = 1;
+  p->entries = malloc(historySize * sizeof(input *));
+  pInit = 2;
+}
+void childSignalHandler(int signum) {
   kill(childPID, SIGINT);
-  if(argumentListPtr!=0){
-
+  if (argumentListPtr != 0) {
   }
 }
-void freeArgumentList(){
-  if(argumentListPtr==0) return;
-  for(int i = 0; i<argCount; i++){
-    free(argumentListPtr[i]);
+void freeArgumentList() {
+  if (entriesInitalized >= 0) {
+    for (int i = 0; i < entriesInitalized; i++) {
+      int stuffToFree = p->entries[i].argumentCount;
+      for (int j = 0; j < stuffToFree; j++) {
+        free(p->entries[i].args[j]);
+      }
+      free(p->entries[i].args);
+    }
+    free(p->entries);
+    free(p);
+
+  } else if (pInit == 2) {
+    free(p->entries);
+    free(p);
+  } else if (pInit == 1) {
+    free(p);
+  }
+  storeArgument(0, 0, 3);
+  if (arggCount != -1) {
+    for (int i = 0; i < arggCount; i++) {
+      free(*args[i]);
+    }
+    free(args);
   }
 }
 char *getHomeDirectory() {
@@ -22,13 +56,15 @@ char *getHomeDirectory() {
   return userPasswdFile->pw_dir;
 }
 void autocomplete(char *readHere, int inputLength) {}
-void executeCommand(char *argumentList[], int wordCount) {
+
+void executeCommand() {
+  char **argumentList = p->entries[p->commandCount-1].args;
+  int wordCount = p->entries[p->commandCount-1].argumentCount;
   if (strcmp(argumentList[0], "cd") == 0) {
     changeDirectory(argumentList[1]);
   } else if (strcmp(argumentList[0], "quit") == 0) {
     cleanup(0);
   } else {
-    argumentList[wordCount] = NULL;
     int pipeFD[2];
     pipe(pipeFD);
     pid_t child = fork();
@@ -60,86 +96,109 @@ void executeCommand(char *argumentList[], int wordCount) {
         write(1, returnData, strlen(returnData));
         memset(returnData, 0, sizeof(&returnData));
       }
-      write(1, returnData, strlen(returnData));
       free(returnData);
       close(pipeFD[0]);
     } else {
       waitpid(child, NULL, 0);
     }
-    freeArgumentList();
+    // freeArgumentList();
     argumentListPtr = 0;
     argCount = 0;
     signal(SIGINT, cleanup);
   }
 }
 
-  void writeHeader() { write(1, shellHeader, strlen(shellHeader)); }
+void writeHeader() { write(1, shellHeader, strlen(shellHeader)); }
 
-  void processCommand(char *buffer, int bytesRead) {
-    int foundSpace = 0;
-    int wordCount = 0;
-    char argumentBuffer[256];
-    for (int i = 0; i < bytesRead; i++) {
-      if (buffer[i] == 32) {
-        foundSpace = 1;
-      } else if (buffer[i] == 10) {
-        wordCount++;
-        break;
-      } else if (foundSpace == 1) {
-        wordCount++;
-        foundSpace = 0;
-      }
-    }
-    char *argumentList[wordCount + 1];
-    int currentWord = 0;
-    int currentChar = 0;
-    char wordBuffer[64];
-    foundSpace = 0;
-    for (int i = 0; i < bytesRead; i++) {
-      // Found a space
-      if (buffer[i] == 32) {
-        if (foundSpace == 0 &&
-            currentChar != 0) { // If this isnt an empty word/series of spaces,
-                                // store back the word
-          wordBuffer[currentChar] = '\0';
-          argumentList[currentWord] = malloc((currentChar + 1) * sizeof(char));
-          currentChar = 0;
-          strcpy(argumentList[currentWord++], wordBuffer);
-          memset(wordBuffer, 0, sizeof(wordBuffer));
-        }
-        foundSpace = 1;
-      } else if (buffer[i] == 10) { // Found a newline
-        if (currentChar != 0) { // If this isnt an empty word/series of spaces,
-                                // store back the word
-          wordBuffer[currentChar] = '\0';
-          argumentList[currentWord] = malloc((currentChar + 1) * sizeof(char));
-          strcpy(argumentList[currentWord++], wordBuffer);
+// void executeCommand(){
 
-          currentChar = 0;
-          memset(wordBuffer, 0, sizeof(wordBuffer));
-        }
-        break;
-      } else {
-        if (foundSpace == 1)
-          foundSpace = 0;
-        wordBuffer[currentChar++] = buffer[i];
-      }
-    }
-    argumentListPtr = argumentList;
-    argCount = wordCount;
-    executeCommand(argumentList, wordCount);
+// }
+void processCommand(char *buffer, int bytesRead) {
+  buildArgs(buffer, bytesRead);
+  executeCommand();
+}
+
+void pushEntry(input *i) {
+  if (p->commandCount == p->maxCommands) {
+    memmove(&p->entries[1], &p->entries[0],
+            (historySize - 1) * sizeof(input *));
   }
+  p->entries[p->commandCount] = *i;
+  p->commandCount != p->maxCommands ? p->commandCount++ : 0;
+  entriesInitalized == -1 ? entriesInitalized = 1 : entriesInitalized++;
+}
 
-  void changeDirectory(char *newDirectory) {
-    if (chdir(newDirectory) < 0) {
-      write(2, "cd failed: bad path!\n", 22);
+void storeArgument(int charsInArg, char *argumentBuffer, int status) {
+  static input *currentCommand = NULL;
+  static int commandInit = 0;
+  switch (status) {
+  case (0):
+    currentCommand = malloc(sizeof(input));
+    commandInit = 1;
+    currentCommand->args = malloc(maxArguments * sizeof(argument *));
+    currentCommand->argumentCount = 0;
+    arggCount = 0;
+    break;
+  case (1):
+    currentCommand->args[currentCommand->argumentCount] =
+        malloc((charsInArg + 1) * sizeof(char));
+    argumentBuffer[charsInArg] = '\0';
+    strcpy(currentCommand->args[currentCommand->argumentCount], argumentBuffer);
+    currentCommand->argumentCount++;
+    break;
+  case (2):
+    currentCommand->args[currentCommand->argumentCount]=NULL;
+    pushEntry(currentCommand);
+          free(currentCommand);
+          commandInit = 0;
+    break;
+  case (3):
+    if (commandInit == 1){
+      free(currentCommand);
+    }
+    break;
+  default:
+    break;
+  }
+}
+
+void buildArgs(char *buffer, int bytesRead) {
+  if (bytesRead == 0)
+    return;
+  int firstFound = 0;
+  int bytesProcessed = 0;
+  int charsInArg = 0;
+  char argumentBuffer[256];
+  storeArgument(0, 0, 0);
+  while (bytesProcessed < bytesRead) {
+    int currentChar = buffer[bytesProcessed++];
+    switch (currentChar) {
+    case (32):
+      if (charsInArg != 0)
+        storeArgument(charsInArg, argumentBuffer, 1);
+      charsInArg = 0;
+      break;
+    case (10):
+      storeArgument(charsInArg, argumentBuffer, 1);
+      charsInArg = 0;
+      break;
+    default:
+      argumentBuffer[charsInArg++] = (char)currentChar;
+
+      break;
     }
   }
-
-  void returnHome(char *homeDirectory) {
-    printf("Home directory is %s\n", homeDirectory);
-    if (chdir(homeDirectory) < 0) {
-      write(2, "Setup failed!\n", 15);
-      exit(1);
-    }
+  storeArgument(0, 0, 2);
+}
+void changeDirectory(char *newDirectory) {
+  if (chdir(newDirectory) < 0) {
+    write(2, "cd failed: bad path!\n", 22);
   }
+}
+
+void returnHome(char *homeDirectory) {
+  if (chdir(homeDirectory) < 0) {
+    write(2, "Setup failed!\n", 15);
+    exit(1);
+  }
+}

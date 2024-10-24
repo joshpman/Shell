@@ -22,6 +22,7 @@ void setup() {
   char *userDir = getHomeDirectory();
   returnHome(userDir);
   setupTerminal();
+  setupHelper();
 }
 void setupTerminal() {
   struct termios terminalSettings;
@@ -68,10 +69,11 @@ int main(int argc, char **argv) {
         inputLength = 0;
         memset(bufferedText, 0, sizeof(bufferedText));
       } else { // Else
+        readHere[bytesIn] = '\0';
         strcat(bufferedText, readHere);
         inputLength += bytesIn;
       }
-      memset(readHere, 0, sizeof(&readHere));
+      memset(readHere, 0, bufferSize);
     };
   }
   free(readHere);
