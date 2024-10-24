@@ -46,7 +46,7 @@ typedef struct{
     int append;
     int backgroundTask;
     char* inputFile;
-    void* pipeTo;
-    void* runNext;
+    int pipeTo;
+    int runNext;
 } command;
 // argument** args;

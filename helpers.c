@@ -13,6 +13,7 @@ int pInit = 0;
 int entriesInitalized = -1;
 command **commandHolder;
 int commandHolderInit = -1;
+int commandHolderEntriesUsed = 0;
 void setupHelper() {
   p = malloc(sizeof(previousInputs));
   p->maxCommands = historySize;
@@ -20,6 +21,13 @@ void setupHelper() {
   pInit = 1;
   p->entries = malloc(historySize * sizeof(input *));
   pInit = 2;
+}
+void executeCommand(){
+  printf("Command list has %d entries\n", commandHolderEntriesUsed);
+  command *currentEntry = commandHolder[0];
+  printf("This function has %d for pipeTo\n", currentEntry->pipeTo);
+    printf("This function has %s for outputFile\n", currentEntry->outputFile);
+    if(currentEntry->outputFile==NULL) printf("No output file provided\n");
 }
 void childSignalHandler(int signum) { kill(childPID, SIGINT); }
 void freeArgumentList() {
@@ -49,7 +57,7 @@ char *getHomeDirectory() {
 }
 void autocomplete(char *readHere, int inputLength) {}
 
-void executeCommand() {
+void executeCommand2() {
   char **argumentList = p->entries[p->commandCount - 1].args;
   int wordCount = p->entries[p->commandCount - 1].argumentCount;
   if (strcmp(argumentList[0], "cd") == 0) {
@@ -207,8 +215,6 @@ void freeCommand(int wasError) {
     free(commandHolder[i]->arguments);
     free(commandHolder[i]->outputFile);
     free(commandHolder[i]->inputFile);
-    free(commandHolder[i]->pipeTo);
-    free(commandHolder[i]->runNext);
   }
   for (int i = 0; i < maxCommandChain; i++) {
     free(commandHolder[i]);
@@ -236,7 +242,9 @@ void parseCommand() {
 
   int bufPointer = 0;
   int currentCommand = 0;
+  commandHolderEntriesUsed = 1;
   for (int i = 0; i < wordsToCheck; i++) {
+    // printf("I: %d, words to check: %d\n", i, wordsToCheck);
     char *currentWord = p->entries[p->commandCount - 1].args[i];
     int wordLength = strlen(currentWord);
     if (wordLength >= 1) {
@@ -278,20 +286,22 @@ void parseCommand() {
         if (wordLength == 1) {
           commandHolder[currentCommand]->backgroundTask = 1;
         } else if (wordLength == 2 && i != wordsToCheck - 1) {
-          commandHolder[currentCommand]->runNext = commandHolder[currentCommand+1];
+          commandHolder[currentCommand]->runNext = currentCommand+1;
           currentCommand++;
+          commandHolderEntriesUsed++;
         } else {
           freeCommand(1);
           return;
         }
         break;
       case (124): // Represents |
-        if (wordLength > 1) {
+        if (wordLength > 1 || i == wordsToCheck - 1) {
           freeCommand(1);
           return;
         } else {
-          commandHolder[currentCommand]->pipeTo = commandHolder[currentCommand+1];
+          commandHolder[currentCommand]->pipeTo = currentCommand+1;
           currentCommand++;
+          commandHolderEntriesUsed++;
         }
       default:
         commandHolder[currentCommand]->arguments[bufPointer] = malloc(sizeof(char) * (wordLength + 1)); // Allocate memory for string + null terminator
