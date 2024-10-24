@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
   setup();
   writeHeader();
   while (1) {
-    memset(readHere, 0, sizeof(*readHere));
+    memset(readHere, 0, bufferSize);
     FD_ZERO(&fileSet);
     FD_SET(0, &fileSet);
     int selectVal = select(nfds, &fileSet, NULL, NULL, NULL);

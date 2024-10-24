@@ -20,6 +20,7 @@ void processCommand(char *buffer, int bytesRead);
 void buildArgs(char *buffer, int bytesRead);
 void storeArgument(int charsInArg, char *argumentBuffer, int status);
 void setupHelper();
+void parseCommand();
 //Holds each argume
 typedef char* argument;
 
@@ -34,4 +35,18 @@ typedef struct {
   input *entries;
 } previousInputs;
 
+typedef struct{
+    
+}background;
+
+typedef struct{
+    argument* arguments;
+    int argumentCount;
+    char* outputFile;
+    int append;
+    int backgroundTask;
+    char* inputFile;
+    void* pipeTo;
+    void* runNext;
+} command;
 // argument** args;

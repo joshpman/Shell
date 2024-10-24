@@ -1,7 +1,9 @@
 #include "shell.h"
 #define shellHeader "[My-Shell] "
 #define historySize 128
-#define maxArguments 8192
+#define maxArguments 128
+#define maxCommandChain 8
+#define maxSubArgs 8
 char *commands[] = {"cd"};
 char **argumentListPtr = 0;
 int argCount = 0;
@@ -9,8 +11,8 @@ int childPID;
 previousInputs *p;
 int pInit = 0;
 int entriesInitalized = -1;
-argument **args;
-int arggCount = -1;
+command **commandHolder;
+int commandHolderInit = -1;
 void setupHelper() {
   p = malloc(sizeof(previousInputs));
   p->maxCommands = historySize;
@@ -19,11 +21,7 @@ void setupHelper() {
   p->entries = malloc(historySize * sizeof(input *));
   pInit = 2;
 }
-void childSignalHandler(int signum) {
-  kill(childPID, SIGINT);
-  if (argumentListPtr != 0) {
-  }
-}
+void childSignalHandler(int signum) { kill(childPID, SIGINT); }
 void freeArgumentList() {
   if (entriesInitalized >= 0) {
     for (int i = 0; i < entriesInitalized; i++) {
@@ -43,12 +41,6 @@ void freeArgumentList() {
     free(p);
   }
   storeArgument(0, 0, 3);
-  if (arggCount != -1) {
-    for (int i = 0; i < arggCount; i++) {
-      free(*args[i]);
-    }
-    free(args);
-  }
 }
 char *getHomeDirectory() {
   uid_t callingUserID = getuid();
@@ -58,8 +50,8 @@ char *getHomeDirectory() {
 void autocomplete(char *readHere, int inputLength) {}
 
 void executeCommand() {
-  char **argumentList = p->entries[p->commandCount-1].args;
-  int wordCount = p->entries[p->commandCount-1].argumentCount;
+  char **argumentList = p->entries[p->commandCount - 1].args;
+  int wordCount = p->entries[p->commandCount - 1].argumentCount;
   if (strcmp(argumentList[0], "cd") == 0) {
     changeDirectory(argumentList[1]);
   } else if (strcmp(argumentList[0], "quit") == 0) {
@@ -110,11 +102,9 @@ void executeCommand() {
 
 void writeHeader() { write(1, shellHeader, strlen(shellHeader)); }
 
-// void executeCommand(){
-
-// }
 void processCommand(char *buffer, int bytesRead) {
   buildArgs(buffer, bytesRead);
+  parseCommand();
   executeCommand();
 }
 
@@ -128,6 +118,9 @@ void pushEntry(input *i) {
   entriesInitalized == -1 ? entriesInitalized = 1 : entriesInitalized++;
 }
 
+/*
+I fought pointers for like an hour to get this function to work
+*/
 void storeArgument(int charsInArg, char *argumentBuffer, int status) {
   static input *currentCommand = NULL;
   static int commandInit = 0;
@@ -137,7 +130,6 @@ void storeArgument(int charsInArg, char *argumentBuffer, int status) {
     commandInit = 1;
     currentCommand->args = malloc(maxArguments * sizeof(argument *));
     currentCommand->argumentCount = 0;
-    arggCount = 0;
     break;
   case (1):
     currentCommand->args[currentCommand->argumentCount] =
@@ -147,13 +139,13 @@ void storeArgument(int charsInArg, char *argumentBuffer, int status) {
     currentCommand->argumentCount++;
     break;
   case (2):
-    currentCommand->args[currentCommand->argumentCount]=NULL;
+    currentCommand->args[currentCommand->argumentCount] = NULL;
     pushEntry(currentCommand);
-          free(currentCommand);
-          commandInit = 0;
+    free(currentCommand);
+    commandInit = 0;
     break;
   case (3):
-    if (commandInit == 1){
+    if (commandInit == 1) {
       free(currentCommand);
     }
     break;
@@ -190,6 +182,7 @@ void buildArgs(char *buffer, int bytesRead) {
   }
   storeArgument(0, 0, 2);
 }
+
 void changeDirectory(char *newDirectory) {
   if (chdir(newDirectory) < 0) {
     write(2, "cd failed: bad path!\n", 22);
@@ -202,3 +195,113 @@ void returnHome(char *homeDirectory) {
     exit(1);
   }
 }
+void storeCommand(command *command, int pos) {
+  commandHolder[pos] = command;
+  commandHolderInit++;
+}
+void freeCommand(int wasError, command *toFree, command *freeNext) {
+  for (int i = 0; i < commandHolderInit; i++) {
+    free(commandHolder[i]->arguments);
+    free(commandHolder[i]->outputFile);
+    free(commandHolder[i]->inputFile);
+    free(commandHolder[i]->pipeTo);
+    free(commandHolder[i]->runNext);
+  }
+  for (int i = 0; i < maxCommandChain; i++) {
+    free(commandHolder[i]);
+  }
+  if (wasError) {
+    free(toFree);
+    free(freeNext);
+    write(2, "Parse error!\n", 14);
+  }
+}
+void parseCommand() {
+  int wordsToCheck = p->entries[p->commandCount - 1].argumentCount;
+  commandHolder = malloc(sizeof(command *) * maxCommandChain);
+  commandHolderInit = 0;
+  char *wordBuffer[wordsToCheck];
+  command *currentCommand = malloc(sizeof(command));
+    memset(currentCommand, 0, sizeof(command));
+  currentCommand->arguments = malloc(sizeof(argument *) * maxSubArgs);
+  command *nextCommand = malloc(sizeof(command));
+
+
+  memset(&wordBuffer, 0, sizeof(wordBuffer));
+
+  int bufPointer = 0;
+
+  for (int i = 0; i < wordsToCheck; i++) {
+    char *currentWord = p->entries[p->commandCount - 1].args[i];
+    int wordLength = strlen(currentWord);
+    if (wordLength >= 1) {
+      switch (currentWord[0]) {
+      case (60): // Represents <
+        if (wordLength == 1 && i != wordsToCheck - 1) {
+          currentCommand->inputFile =
+              malloc(sizeof(char) *
+                     strlen(p->entries[p->commandCount - 1].args[i + 1]));
+          currentCommand->inputFile =
+              p->entries[p->commandCount - 1].args[i + 1];
+        } else {
+          freeCommand(1, currentCommand, nextCommand);
+          return;
+        }
+        break;
+      case (62): // Represents >
+        if (wordLength == 1 && i != wordsToCheck - 1) {
+          currentCommand->outputFile =
+              malloc(sizeof(char) *
+                     strlen(p->entries[p->commandCount - 1].args[i + 1]));
+          currentCommand->outputFile =
+              p->entries[p->commandCount - 1].args[i + 1];
+
+        } else if (wordLength == 2 && currentWord[1] == 62 &&
+                   i != wordsToCheck - 1) {
+          currentCommand->outputFile =
+              malloc(sizeof(char) *
+                     strlen(p->entries[p->commandCount - 1].args[i + 1]));
+          currentCommand->outputFile =
+              p->entries[p->commandCount - 1].args[i + 1];
+          currentCommand->append = 1;
+
+        } else {
+          freeCommand(1, currentCommand, nextCommand);
+          return;
+        }
+      case (38): // Repesents &
+        if (wordLength == 1) {
+          currentCommand->backgroundTask = 1;
+        } else if (wordLength == 2 && i != wordsToCheck - 1) {
+          currentCommand->runNext = nextCommand;
+        } else {
+          freeCommand(1, currentCommand, nextCommand);
+          return;
+        }
+        break;
+      case (124): // Represents |
+        if (wordLength > 1) {
+          freeCommand(1, currentCommand, nextCommand);
+          return;
+        } else {
+          currentCommand->runNext = nextCommand;
+        }
+      default:
+        currentCommand->arguments[bufPointer] = malloc(sizeof(char) * (wordLength + 1)); // Allocate memory for string + null terminator
+            currentWord[strlen(currentWord)] = '\0';
+        strcpy(currentCommand->arguments[bufPointer], currentWord);
+        break;
+      }
+    }
+  }
+}
+/*
+How to add pipes & I/O Redirection
+
+1. Need to parse the command list and look for |, >,>>,<,&&
+2. Sort each command into the command struct
+
+
+How to handle stuff like "./encode < file | ./decode > decodedFile"
+
+*/
