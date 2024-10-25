@@ -28,63 +28,90 @@ void executeCommand() {
   // printf("This function has %d for pipeTo\n", currentEntry->pipeTo);
   // printf("This function has %s for outputFile\n", currentEntry->outputFile);
   command *currentEntry = commandHolder[0];
-  int argumentCount = currentEntry->argumentCount;
-  int pipeTo = currentEntry->pipeTo;
-  char *outputFile = currentEntry->outputFile;
-  char *inputFile = currentEntry->inputFile;
-  int argCount = currentEntry->argumentCount;
   argument *arguments = currentEntry->arguments;
-  int append = currentEntry->append;
-  int runNext = currentEntry->runNext;
-  for (int i = 0; i < argumentCount; i++) {
-    printf("argument #%d is %s\n", i, arguments[i]);
-  }
   if (strcmp(arguments[0], "cd") == 0) {
     changeDirectory(arguments[1]);
-    freeCommand(-1);
+    freeCommand(0);
     return;
   }
-  int pipeFD[2];
+  for (int i = 0; i < currentEntry->argumentCount; i++) {
+    printf("Current entry has %s at %d\n", currentEntry->arguments[i], i);
+  };
+  int pipeFD[2], previousPipeFD[2];
   int outputFD = 1;
   int inputFD = 0;
-  pipe(pipeFD);
-  if (append && outputFile != NULL) {
-    outputFD = open(outputFile, O_CREAT | O_APPEND | O_RDWR, 0644);
-  } else if (outputFile != NULL) {
-    outputFD = open(outputFile, O_CREAT | O_TRUNC | O_RDWR, 0644);
-  } else {
-    outputFD = 1;
-  }
-
-  if (inputFile != NULL) {
-    inputFD = open(inputFile, O_RDONLY, 0644);
-    if (inputFD < 0) {
-      write(2, "Failed to open file!\n", 22);
-    }
-  } else {
-    inputFD = 0;
-  }
   int i = 0;
-  while(commandHolder[i]->pipeTo>0 && i<=commandHolderEntriesUsed){
-    break;
-  }
-  childPID = fork();
-  if (childPID == 0) {
-    char **execArgs =
-        malloc(sizeof(char *) * (currentEntry->argumentCount + 1));
-    for (int i = 0; i < currentEntry->argumentCount; i++) {
-      execArgs[i] = currentEntry->arguments[i];
+  int first = 1;
+  do {
+    currentEntry = commandHolder[i];
+
+    if (currentEntry->hasOutput && currentEntry->pipeTo <= 0) {
+      if (currentEntry->append) {
+        outputFD =
+            open(currentEntry->outputFile, O_CREAT | O_APPEND | O_WRONLY, 0644);
+      } else {
+        outputFD =
+            open(currentEntry->outputFile, O_CREAT | O_TRUNC | O_WRONLY, 0644);
+      }
     }
-    execArgs[currentEntry->argumentCount] = NULL;
-    if (execvp(execArgs[0], execArgs) < 0) {
-      write(2, "Exec failed!\n", 14);
+    if (first && currentEntry->hasInput) {
+      inputFD = open(currentEntry->inputFile, O_RDONLY);
+    }
+
+    if (currentEntry->pipeTo > 0) {
+      pipe(pipeFD);
+    }
+    if ((childPID = fork()) == 0) {
+      if (first) {
+        if (inputFD != 1) {
+          dup2(inputFD, 1);
+          close(inputFD);
+        }
+      } else {
+        dup2(previousPipeFD[0], 1);
+        close(previousPipeFD[0]);
+        close(previousPipeFD[1]);
+      }
+
+      if (currentEntry->pipeTo > 0) {
+        dup2(pipeFD[1], 0);
+        close(pipeFD[0]);
+        close(pipeFD[1]);
+      } else if (outputFD != 1) {
+        dup2(outputFD, 1);
+        close(outputFD);
+      }
+
+      char **execArgs =
+          malloc(sizeof(char *) * (currentEntry->argumentCount + 1));
+      for (int i = 0; i < currentEntry->argumentCount; i++) {
+        execArgs[i] = currentEntry->arguments[i];
+      }
+      execArgs[currentEntry->argumentCount] = NULL;
+      if (execvp(execArgs[0], execArgs) < 0) {
+        write(2, "Exec failed!\n", 14);
+        free(execArgs);
+        exit(-1);
+      }
       free(execArgs);
-      exit(-1);
+      close(pipeFD[0]);
+      close(pipeFD[1]);
+      exit(0);
+    } else {
+      if (!first) {
+        close(previousPipeFD[0]);
+        close(previousPipeFD[1]);
+      }
+      if (currentEntry->pipeTo > 0) {
+        previousPipeFD[0] = pipeFD[0];
+        previousPipeFD[1] = pipeFD[1];
+      }
     }
-    free(execArgs);
-  }
-  if (pipeTo > 0) {
-  }
+    wait(NULL);
+    first = 0;
+    i++;
+  } while (i <= commandHolderEntriesUsed && commandHolder[i]->pipeTo > 0);
+
   freeCommand(-1);
 }
 void childSignalHandler(int signum) { kill(childPID, SIGINT); }
@@ -275,15 +302,20 @@ void storeCommand(command *command, int pos) {
 American Function(cuz its the land of the free)
 */
 void freeCommand(int wasError) {
-  if (commandHolderInit == -1)
+  printf("Command holder entries used is %d\n", commandHolderEntriesUsed);
+  if (commandHolderInit == -1) {
     return;
-  for (int i = 0; i < commandHolderInit; i++) {
+  }
+  for (int i = 0; i <= commandHolderEntriesUsed; i++) {
+    printf("On iteration %d\n", i);
     for (int j = 0; j < commandHolder[i]->argumentCount; j++) {
       free(commandHolder[i]->arguments[j]);
     }
     free(commandHolder[i]->arguments);
-    free(commandHolder[i]->outputFile);
-    free(commandHolder[i]->inputFile);
+    if (commandHolder[i]->hasOutput)
+      free(commandHolder[i]->outputFile);
+    if (commandHolder[i]->hasInput)
+      free(commandHolder[i]->inputFile);
   }
   for (int i = 0; i < maxCommandChain; i++) {
     free(commandHolder[i]);
@@ -305,7 +337,13 @@ void parseCommand() {
   commandHolderInit = 0;
   for (int i = 0; i < maxCommandChain; i++) {
     commandHolder[i] = malloc(sizeof(command));
-    memset(commandHolder[i], 0, sizeof(*commandHolder[i]));
+    commandHolder[i]->pipeTo = 0;
+    commandHolder[i]->argumentCount = 0;
+    commandHolder[i]->append = 0;
+    commandHolder[i]->runNext = 0;
+    commandHolder[i]->backgroundTask = 0;
+    commandHolder[i]->hasInput = 0;
+    commandHolder[i]->hasOutput = 0;
     commandHolder[i]->arguments = malloc(sizeof(argument *) * maxSubArgs);
     commandHolderInit++;
   }
@@ -314,7 +352,7 @@ void parseCommand() {
 
   int bufPointer = 0;
   int currentCommand = 0;
-  commandHolderEntriesUsed = 1;
+  commandHolderEntriesUsed = 0;
   for (int i = 0; i < wordsToCheck; i++) {
     // printf("I: %d, words to check: %d\n", i, wordsToCheck);
     char *currentWord = p->entries[p->commandCount - 1].args[i];
@@ -322,36 +360,49 @@ void parseCommand() {
     if (wordLength >= 1) {
       switch (currentWord[0]) {
       case (60): // Represents <
-        if (wordLength == 1 && i != wordsToCheck - 1) {
+        if (wordLength == 1 && i != wordsToCheck) {
           commandHolder[currentCommand]->inputFile =
               malloc(sizeof(char) *
                      strlen(p->entries[p->commandCount - 1].args[i + 1]));
-          commandHolder[currentCommand]->inputFile =
-              p->entries[p->commandCount - 1].args[i + 1];
+          strcpy(commandHolder[currentCommand]->inputFile, p->entries[p->commandCount - 1].args[i + 1]);
+          commandHolder[currentCommand]->hasInput = 1;
+          currentCommand++;
+          commandHolderEntriesUsed++;
+          i++;
+          bufPointer = 0;
+          break;
         } else {
           freeCommand(1);
           return;
         }
         break;
       case (62): // Represents >
-        if (wordLength == 1 && i != wordsToCheck - 1) {
+        if (wordLength == 1 && i != wordsToCheck) {
           commandHolder[currentCommand]->outputFile =
               malloc(sizeof(char) *
                      strlen(p->entries[p->commandCount - 1].args[i + 1]));
           commandHolder[currentCommand]->outputFile =
               p->entries[p->commandCount - 1].args[i + 1];
-
+          commandHolder[currentCommand]->hasOutput = 1;
+          currentCommand++;
+          bufPointer = 0;
+          commandHolderEntriesUsed++;
+          i++;
+          break;
         } else if (wordLength == 2 && currentWord[1] == 62 &&
-                   i != wordsToCheck - 1) {
+                   i != wordsToCheck) {
           commandHolder[currentCommand]->outputFile =
               malloc(sizeof(char) *
                      strlen(p->entries[p->commandCount - 1].args[i + 1]));
           commandHolder[currentCommand]->outputFile =
               p->entries[p->commandCount - 1].args[i + 1];
           commandHolder[currentCommand]->append = 1;
+          commandHolder[currentCommand]->hasOutput = 1;
           currentCommand++;
           commandHolderEntriesUsed++;
-
+          i++;
+          bufPointer = 0;
+          break;
         } else {
           freeCommand(1);
           return;
@@ -360,32 +411,35 @@ void parseCommand() {
       case (38): // Repesents &
         if (wordLength == 1) {
           commandHolder[currentCommand]->backgroundTask = 1;
-        } else if (wordLength == 2 && i != wordsToCheck - 1) {
+          break;
+        } else if (wordLength == 2 && i != wordsToCheck) {
           commandHolder[currentCommand]->runNext = currentCommand + 1;
           currentCommand++;
           commandHolderEntriesUsed++;
+          bufPointer = 0;
+          break;
         } else {
           freeCommand(1);
           return;
         }
         break;
       case (124): // Represents |
-        if (wordLength > 1 || i == wordsToCheck - 1) {
+        if (wordLength > 1 || i == wordsToCheck) {
           freeCommand(1);
           return;
         } else {
           commandHolder[currentCommand]->pipeTo = currentCommand + 1;
           currentCommand++;
           commandHolderEntriesUsed++;
+          bufPointer = 0;
+          break;
         }
         break;
       default:
         commandHolder[currentCommand]->arguments[bufPointer] = malloc(
             sizeof(char) *
             (wordLength + 1)); // Allocate memory for string + null terminator
-        currentWord[strlen(currentWord)] = '\0';
-        strcpy(commandHolder[currentCommand]->arguments[bufPointer],
-               currentWord);
+strncpy(commandHolder[currentCommand]->arguments[bufPointer], currentWord, wordLength + 1);
         bufPointer++;
         commandHolder[currentCommand]->argumentCount++;
         break;
@@ -393,13 +447,3 @@ void parseCommand() {
     }
   }
 }
-/*
-How to add pipes & I/O Redirection
-
-1. Need to parse the command list and look for |, >,>>,<,&&
-2. Sort each command into the command struct
-
-
-How to handle stuff like "./encode < file | ./decode > decodedFile"
-
-*/

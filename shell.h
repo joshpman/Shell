@@ -44,9 +44,11 @@ typedef struct{
 typedef struct{
     argument* arguments;
     int argumentCount;
+    int hasOutput;
     char* outputFile;
     int append;
     int backgroundTask;
+    int hasInput;
     char* inputFile;
     int pipeTo;
     int runNext;
