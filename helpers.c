@@ -44,6 +44,7 @@ void executeCommand() {
   int first = 1;
   //1st do while loop I've ever wrote
   do {
+    printf("iteration!\n");
     currentEntry = commandHolder[i];
 
     //If we need to i/o redirect && not pipe(Which shouldn't be valid anyway)
@@ -73,28 +74,28 @@ void executeCommand() {
 
     //Fork into child
     if ((childPID = fork()) == 0) {
+      printf("Made it into child!\n");
       //If its the first child with 
       if (first) {
         if (inputFD != 1) {//If input fd didn't fail
-          dup2(inputFD, 1);
+          dup2(inputFD, 0);
           close(inputFD);
         }
-      } else {
+      } else if(!first) {
         //Copy old pipes output for standard of this chilsd
-        dup2(previousPipeFD[0], 1);
+        dup2(previousPipeFD[0], 0);
         close(previousPipeFD[0]);//Cleanup
-        close(previousPipeFD[1]);//Cleanup
+        // close(previousPipeFD[1]);//Cleanup
       }
 
       //If we have to pipe again
-      if (currentEntry->pipeTo > 0 && !first) {
-        dup2(pipeFD[1], 0);//Override our standard in with write end of pipe
-        close(pipeFD[0]);
-        close(pipeFD[1]);
-      } else if (outputFD != 1) {
+      if (currentEntry->pipeTo > 0 && currentEntry->hasOutput) {
+        dup2(outputFD, 1);//Override our standard in with write end of pipe
+        close(outputFD);
+      } else if (currentEntry->pipeTo>0) {
         //Else I/O Redirect
         dup2(outputFD, 1);
-        close(outputFD);
+        close(pipeFD[1]);
       }
 
       char **execArgs =
@@ -103,6 +104,7 @@ void executeCommand() {
         execArgs[i] = currentEntry->arguments[i];
       }
       execArgs[currentEntry->argumentCount] = NULL;
+            // printf("Made it into child!\n");
       if (execvp(execArgs[0], execArgs) < 0) {
         write(2, "Exec failed!\n", 14);
         free(execArgs);
@@ -123,9 +125,10 @@ void executeCommand() {
       }
     }
     wait(NULL);
+    printf("Made it past child\n");
     first = 0;
     i++;
-  } while (i <= commandHolderEntriesUsed && commandHolder[i]->pipeTo > 0);
+  } while (i < commandHolderEntriesUsed+1);
 
   freeCommand(-1);
 }
