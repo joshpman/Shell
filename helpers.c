@@ -42,10 +42,13 @@ void executeCommand() {
   int inputFD = 0;
   int i = 0;
   int first = 1;
+  //1st do while loop I've ever wrote
   do {
     currentEntry = commandHolder[i];
 
+    //If we need to i/o redirect && not pipe(Which shouldn't be valid anyway)
     if (currentEntry->hasOutput && currentEntry->pipeTo <= 0) {
+      //Check if we need to append i.e >> passed ijn
       if (currentEntry->append) {
         outputFD =
             open(currentEntry->outputFile, O_CREAT | O_APPEND | O_WRONLY, 0644);
@@ -54,30 +57,42 @@ void executeCommand() {
             open(currentEntry->outputFile, O_CREAT | O_TRUNC | O_WRONLY, 0644);
       }
     }
+
+    //If this is the first task and it has an input file
     if (first && currentEntry->hasInput) {
       inputFD = open(currentEntry->inputFile, O_RDONLY);
+      if(inputFD<=0){
+        inputFD = -1;
+        }//If it broke, reset it to -1
     }
 
+    //If it has to pipe to a task
     if (currentEntry->pipeTo > 0) {
       pipe(pipeFD);
     }
+
+    //Fork into child
     if ((childPID = fork()) == 0) {
+      //If its the first child with 
       if (first) {
-        if (inputFD != 1) {
+        if (inputFD != 1) {//If input fd didn't fail
           dup2(inputFD, 1);
           close(inputFD);
         }
       } else {
+        //Copy old pipes output for standard of this chilsd
         dup2(previousPipeFD[0], 1);
-        close(previousPipeFD[0]);
-        close(previousPipeFD[1]);
+        close(previousPipeFD[0]);//Cleanup
+        close(previousPipeFD[1]);//Cleanup
       }
 
-      if (currentEntry->pipeTo > 0) {
-        dup2(pipeFD[1], 0);
+      //If we have to pipe again
+      if (currentEntry->pipeTo > 0 && !first) {
+        dup2(pipeFD[1], 0);//Override our standard in with write end of pipe
         close(pipeFD[0]);
         close(pipeFD[1]);
       } else if (outputFD != 1) {
+        //Else I/O Redirect
         dup2(outputFD, 1);
         close(outputFD);
       }
@@ -136,7 +151,7 @@ void freeArgumentList() {
     free(p);
   }
   storeArgument(0, 0, 3);
-  freeCommand(-1);
+  if(commandHolderInit!=-1) freeCommand(-1);
 }
 
 char *getHomeDirectory() {
@@ -145,73 +160,33 @@ char *getHomeDirectory() {
   return userPasswdFile->pw_dir;
 }
 
+
+/*
+So many bugs to fix before I write this
+*/
 void autocomplete(char *readHere, int inputLength) {}
 
-void executeCommand2() {
-  char **argumentList = p->entries[p->commandCount - 1].args;
-  int wordCount = p->entries[p->commandCount - 1].argumentCount;
-  if (strcmp(argumentList[0], "cd") == 0) {
-    changeDirectory(argumentList[1]);
-  } else if (strcmp(argumentList[0], "quit") == 0) {
-    cleanup(0);
-  } else {
-    int pipeFD[2];
-    pipe(pipeFD);
-    pid_t child = fork();
-    childPID = child;
-    if (child == 0) {
-      if (strcmp(argumentList[0], "man") == 0 ||
-          strcmp(argumentList[0], "less")) {
-        if (execvp(argumentList[0], argumentList) < 0) {
-          write(2, "Command not found!\n", 20);
-          exit(1);
-        }
-      } else {
-        dup2(pipeFD[1], 1);
-        close(pipeFD[1]);
-        if (execvp(argumentList[0], argumentList) < 0) {
-          write(2, "Command not found!\n", 20);
-          exit(1);
-        }
-      }
-    }
-    if (strcmp(argumentList[0], "man") == 0 ||
-        strcmp(argumentList[0], "less")) {
-      signal(SIGINT, childSignalHandler);
-      close(pipeFD[1]);
-      char *returnData = malloc(sizeof(char) * 64000);
-      waitpid(child, NULL, 0);
-      int bytesRead = 0;
-      while (read(pipeFD[0], &returnData[bytesRead], sizeof(returnData)) > 0) {
-        write(1, returnData, strlen(returnData));
-        memset(returnData, 0, sizeof(&returnData));
-      }
-      free(returnData);
-      close(pipeFD[0]);
-    } else {
-      waitpid(child, NULL, 0);
-    }
-    // freeArgumentList();
-    argumentListPtr = 0;
-    argCount = 0;
-    signal(SIGINT, cleanup);
-  }
-}
-
+//Why is this a function
 void writeHeader() { write(1, shellHeader, strlen(shellHeader)); }
 
+
+//Nice logic with so much pain in each of these functions
 void processCommand(char *buffer, int bytesRead) {
   buildArgs(buffer, bytesRead);
   parseCommand();
   executeCommand();
 }
 
+
+//Weird stack thingy using memmove
 void pushEntry(input *i) {
   if (p->commandCount == p->maxCommands) {
     memmove(&p->entries[1], &p->entries[0],
             (historySize - 1) * sizeof(input *));
   }
   p->entries[p->commandCount] = *i;
+
+  //Ternary hell
   p->commandCount != p->maxCommands ? p->commandCount++ : 0;
   entriesInitalized == -1 ? entriesInitalized = 1 : entriesInitalized++;
 }
@@ -252,6 +227,7 @@ void storeArgument(int charsInArg, char *argumentBuffer, int status) {
   }
 }
 
+//Parse input by splitting arguments with spaces/newlines between them and storing them in an input struct
 void buildArgs(char *buffer, int bytesRead) {
   if (bytesRead == 0)
     return;
@@ -445,5 +421,59 @@ strncpy(commandHolder[currentCommand]->arguments[bufPointer], currentWord, wordL
         break;
       }
     }
+  }
+}
+
+/*
+This is old and just here for reference
+*/
+void executeCommand2() {
+  char **argumentList = p->entries[p->commandCount - 1].args;
+  int wordCount = p->entries[p->commandCount - 1].argumentCount;
+  if (strcmp(argumentList[0], "cd") == 0) {
+    changeDirectory(argumentList[1]);
+  } else if (strcmp(argumentList[0], "quit") == 0) {
+    cleanup(0);
+  } else {
+    int pipeFD[2];
+    pipe(pipeFD);
+    pid_t child = fork();
+    childPID = child;
+    if (child == 0) {
+      if (strcmp(argumentList[0], "man") == 0 ||
+          strcmp(argumentList[0], "less")) {
+        if (execvp(argumentList[0], argumentList) < 0) {
+          write(2, "Command not found!\n", 20);
+          exit(1);
+        }
+      } else {
+        dup2(pipeFD[1], 1);
+        close(pipeFD[1]);
+        if (execvp(argumentList[0], argumentList) < 0) {
+          write(2, "Command not found!\n", 20);
+          exit(1);
+        }
+      }
+    }
+    if (strcmp(argumentList[0], "man") == 0 ||
+        strcmp(argumentList[0], "less")) {
+      signal(SIGINT, childSignalHandler);
+      close(pipeFD[1]);
+      char *returnData = malloc(sizeof(char) * 64000);
+      waitpid(child, NULL, 0);
+      int bytesRead = 0;
+      while (read(pipeFD[0], &returnData[bytesRead], sizeof(returnData)) > 0) {
+        write(1, returnData, strlen(returnData));
+        memset(returnData, 0, sizeof(&returnData));
+      }
+      free(returnData);
+      close(pipeFD[0]);
+    } else {
+      waitpid(child, NULL, 0);
+    }
+    // freeArgumentList();
+    argumentListPtr = 0;
+    argCount = 0;
+    signal(SIGINT, cleanup);
   }
 }

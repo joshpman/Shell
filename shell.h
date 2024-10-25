@@ -23,24 +23,35 @@ void storeArgument(int charsInArg, char *argumentBuffer, int status);
 void setupHelper();
 void parseCommand();
 void freeCommand(int wasError);
-//Holds each argume
+
+
+//Just a typedef for clarity on purpose of strings
 typedef char* argument;
 
+
+//Used to store one commands input
 typedef struct{
     argument* args;
     int argumentCount;
 } input;
 
+
+//Used to store previous inputs for history
 typedef struct {
   int commandCount;
   int maxCommands;
   input *entries;
 } previousInputs;
 
+
+//Will be used to make background task lis4t
 typedef struct{
-    
+    pid_t processID;
+    int status;
 }background;
 
+
+//Used to store formatted inputs to handle CLI operators
 typedef struct{
     argument* arguments;
     int argumentCount;
