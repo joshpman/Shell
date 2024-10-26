@@ -35,9 +35,8 @@ void executeCommand() {
     freeCommand(0);
     return;
   }
-  for (int i = 0; i < currentEntry.argumentCount; i++) {
-    printf("Current entry has %s at %d\n", currentEntry.arguments[i], i);
-  };
+  // printf("Has command of %s, input file %s and output file %s\n", arguments[0],
+  //        commandHolder[0].inputFile, currentEntry.outputFile);
   int pipeFD[2], previousPipeFD[2];
   pipeFD[0] = -1;
   pipeFD[1] = -1;
@@ -57,15 +56,17 @@ void executeCommand() {
   //   printf("iteration!\n");
   //   currentEntry = commandHolder[i];
 
-  //   // If we need to i/o redirect && not pipe(Which shouldn't be valid anyway)
-  //   if (currentEntry.hasOutput && currentEntry.pipeTo <= 0) {
+  //   // If we need to i/o redirect && not pipe(Which shouldn't be valid
+  //   anyway) if (currentEntry.hasOutput && currentEntry.pipeTo <= 0) {
   //     // Check if we need to append i.e >> passed ijn
   //     if (currentEntry.append) {
   //       outputFD =
-  //           open(currentEntry.outputFile, O_CREAT | O_APPEND | O_WRONLY, 0644);
+  //           open(currentEntry.outputFile, O_CREAT | O_APPEND | O_WRONLY,
+  //           0644);
   //     } else {
   //       outputFD =
-  //           open(currentEntry.outputFile, O_CREAT | O_TRUNC | O_WRONLY, 0644);
+  //           open(currentEntry.outputFile, O_CREAT | O_TRUNC | O_WRONLY,
+  //           0644);
   //     }
   //   }
 
@@ -316,21 +317,23 @@ void freeCommand(int wasError) {
   }
 }
 
-void storeInput(command toAdd, int commandIndex) {
-  toAdd.inputFile =
+void storeInput(int commandHolderIndex, int commandIndex) {
+  printf("Adding input file %s\n", p->entries[p->commandCount - 1].args[commandIndex]);
+  commandHolder[commandHolderIndex].inputFile =
       malloc(sizeof(char) *
              strlen(p->entries[p->commandCount - 1].args[commandIndex]));
-  strcpy(toAdd.inputFile, p->entries[p->commandCount - 1].args[commandIndex]);
-  toAdd.hasInput = 1;
+  strcpy(commandHolder[commandHolderIndex].inputFile, p->entries[p->commandCount - 1].args[commandIndex]);
+  printf("Input file is now %s\n", commandHolder[0].inputFile);
+  commandHolder[commandHolderIndex].hasInput = 1;
 }
-void storeOutput(command toAdd, int commandIndex, int append) {
-  toAdd.outputFile =
+void storeOutput(int commandHolderIndex, int commandIndex, int append) {
+  commandHolder[commandHolderIndex].outputFile =
       malloc(sizeof(char) *
              strlen(p->entries[p->commandCount - 1].args[commandIndex]));
-  toAdd.outputFile = p->entries[p->commandCount - 1].args[commandIndex];
-  toAdd.hasOutput = 1;
+  commandHolder[commandHolderIndex].outputFile = p->entries[p->commandCount - 1].args[commandIndex];
+  commandHolder[commandHolderIndex].hasOutput = 1;
   if (append == 1)
-    toAdd.append = 1;
+    commandHolder[commandHolderIndex].append = 1;
 }
 /*
 Another hour of hand-to-hand combat with pointers and this is still garbage code
@@ -348,7 +351,7 @@ void parseCommand() {
     commandHolder[i].backgroundTask = 0;
     commandHolder[i].hasInput = 0;
     commandHolder[i].hasOutput = 0;
-    commandHolder[i].arguments = malloc(sizeof(argument*) * maxSubArgs);
+    commandHolder[i].arguments = malloc(sizeof(argument *) * maxSubArgs);
     commandHolderInit++;
     // commandHolderEntriesUsed++;
   }
@@ -364,7 +367,7 @@ void parseCommand() {
       switch (currentWord[0]) {
       case (60): // Represents <
         if (wordLength == 1 && i != wordsToCheck) {
-          storeInput(commandHolder[currentCommand], i + 1);
+          storeInput(currentCommand, i + 1);
           goto incrementPartial;
           break;
         } else {
@@ -374,12 +377,12 @@ void parseCommand() {
         break;
       case (62): // Represents >
         if (wordLength == 1 && i != wordsToCheck) {
-          storeOutput(commandHolder[currentCommand], i + 1, 0);
+          storeOutput(currentCommand, i + 1, 0);
           goto incrementPartial;
           break;
         } else if (wordLength == 2 && currentWord[1] == 62 &&
                    i != wordsToCheck) {
-          storeOutput(commandHolder[currentCommand], i + 1, 1);
+          storeOutput(currentCommand, i + 1, 1);
           goto increment;
           break;
         } else {
@@ -415,7 +418,7 @@ void parseCommand() {
       increment:
         currentCommand++;
         commandHolderEntriesUsed++;
-                commandsToExecute++;
+        commandsToExecute++;
       incrementPartial:
         bufPointer = 0;
         i++;
