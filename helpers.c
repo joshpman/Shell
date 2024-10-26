@@ -280,12 +280,12 @@ void storeCommand(command *command, int pos) {
 American Function(cuz its the land of the free)
 */
 void freeCommand(int wasError) {
-  printf("Command holder entries used is %d\n", commandHolderEntriesUsed);
+  // printf("Command holder entries used is %d\n", commandHolderEntriesUsed);
   if (commandHolderInit == -1) {
     return;
   }
   for (int i = 0; i <= commandHolderEntriesUsed; i++) {
-    printf("On iteration %d\n", i);
+    // printf("On iteration %d\n", i);
     for (int j = 0; j < commandHolder[i]->argumentCount; j++) {
       free(commandHolder[i]->arguments[j]);
     }
@@ -356,17 +356,7 @@ void parseCommand() {
       case (60): // Represents <
         if (wordLength == 1 && i != wordsToCheck) {
           storeInput(commandHolder[currentCommand], i + 1);
-          // commandHolder[currentCommand]->inputFile =
-          //     malloc(sizeof(char) *
-          //            strlen(p->entries[p->commandCount - 1].args[i + 1]));
-          // strcpy(commandHolder[currentCommand]->inputFile,
-          // p->entries[p->commandCount - 1].args[i + 1]);
-          // commandHolder[currentCommand]->hasInput = 1;
-          // currentCommand++;
-          // commandHolderEntriesUsed++;
-          // i++;
-          // bufPointer = 0;
-          goto increment;
+          goto incrementPartial;
           break;
         } else {
           freeCommand(1);
@@ -375,33 +365,12 @@ void parseCommand() {
         break;
       case (62): // Represents >
         if (wordLength == 1 && i != wordsToCheck) {
-          // commandHolder[currentCommand]->outputFile =
-          //     malloc(sizeof(char) *
-          //            strlen(p->entries[p->commandCount - 1].args[i + 1]));
-          // commandHolder[currentCommand]->outputFile =
-          //     p->entries[p->commandCount - 1].args[i + 1];
-          // commandHolder[currentCommand]->hasOutput = 1;
-          // currentCommand++;
-          // bufPointer = 0;
-          // commandHolderEntriesUsed++;
-          // i++;
           storeOutput(commandHolder[currentCommand], i + 1, 0);
           goto increment;
           break;
         } else if (wordLength == 2 && currentWord[1] == 62 &&
                    i != wordsToCheck) {
-          // commandHolder[currentCommand]->outputFile =
-          //     malloc(sizeof(char) *
-          //            strlen(p->entries[p->commandCount - 1].args[i + 1]));
-          // commandHolder[currentCommand]->outputFile =
-          //     p->entries[p->commandCount - 1].args[i + 1];
-          // commandHolder[currentCommand]->append = 1;
-          // commandHolder[currentCommand]->hasOutput = 1;
           storeOutput(commandHolder[currentCommand], i + 1, 1);
-          // currentCommand++;
-          // commandHolderEntriesUsed++;
-          // i++;
-          // bufPointer = 0;
           goto increment;
           break;
         } else {
@@ -413,11 +382,9 @@ void parseCommand() {
         if (wordLength == 1) {
           commandHolder[currentCommand]->backgroundTask = 1;
           break;
-        } else if (wordLength == 2 && i != wordsToCheck) {
+        } else if (wordLength == 2 && i != wordsToCheck && currentWord[1]==38) {
           commandHolder[currentCommand]->runNext = currentCommand + 1;
-          currentCommand++;
-          commandHolderEntriesUsed++;
-          bufPointer = 0;
+          goto increment;
           break;
         } else {
           freeCommand(1);
@@ -430,9 +397,7 @@ void parseCommand() {
           return;
         } else {
           commandHolder[currentCommand]->pipeTo = currentCommand + 1;
-          currentCommand++;
-          commandHolderEntriesUsed++;
-          bufPointer = 0;
+          goto increment;
           break;
         }
         break;
@@ -440,8 +405,10 @@ void parseCommand() {
       increment:
         currentCommand++;
         commandHolderEntriesUsed++;
+      incrementPartial:
         bufPointer = 0;
         i++;
+        break;
       default:
         commandHolder[currentCommand]->arguments[bufPointer] = malloc(
             sizeof(char) *
