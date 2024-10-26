@@ -15,6 +15,7 @@ int entriesInitalized = -1;
 command *commandHolder;
 int commandHolderInit = -1;
 int commandHolderEntriesUsed = 0;
+int commandsToExecute = 1;
 void setupHelper() {
   p = malloc(sizeof(previousInputs));
   p->maxCommands = historySize;
@@ -49,8 +50,9 @@ void executeCommand() {
   // 1st do while loop I've ever wrote
 
   do {
-    break;
-  } while (i < commandHolderEntriesUsed + 1);
+    printf("Entered!\n");
+    i++;
+  } while (i < commandsToExecute);
   // do {
   //   printf("iteration!\n");
   //   currentEntry = commandHolder[i];
@@ -348,11 +350,10 @@ void parseCommand() {
     commandHolder[i].hasOutput = 0;
     commandHolder[i].arguments = malloc(sizeof(argument*) * maxSubArgs);
     commandHolderInit++;
-    commandHolderEntriesUsed++;
+    // commandHolderEntriesUsed++;
   }
   char *wordBuffer[wordsToCheck];
   memset(&wordBuffer, 0, sizeof(wordBuffer));
-
   int bufPointer = 0;
   int currentCommand = 0;
   for (int i = 0; i < wordsToCheck; i++) {
@@ -374,7 +375,7 @@ void parseCommand() {
       case (62): // Represents >
         if (wordLength == 1 && i != wordsToCheck) {
           storeOutput(commandHolder[currentCommand], i + 1, 0);
-          goto increment;
+          goto incrementPartial;
           break;
         } else if (wordLength == 2 && currentWord[1] == 62 &&
                    i != wordsToCheck) {
@@ -414,6 +415,7 @@ void parseCommand() {
       increment:
         currentCommand++;
         commandHolderEntriesUsed++;
+                commandsToExecute++;
       incrementPartial:
         bufPointer = 0;
         i++;
