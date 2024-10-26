@@ -12,7 +12,7 @@ int childPID;
 previousInputs *p;
 int pInit = 0;
 int entriesInitalized = -1;
-command **commandHolder;
+command *commandHolder;
 int commandHolderInit = -1;
 int commandHolderEntriesUsed = 0;
 void setupHelper() {
@@ -27,108 +27,120 @@ void executeCommand() {
   // printf("Command list has %d entries\n", commandHolderEntriesUsed);
   // printf("This function has %d for pipeTo\n", currentEntry->pipeTo);
   // printf("This function has %s for outputFile\n", currentEntry->outputFile);
-  command *currentEntry = commandHolder[0];
-  argument *arguments = currentEntry->arguments;
+  command currentEntry = commandHolder[0];
+  argument *arguments = currentEntry.arguments;
   if (strcmp(arguments[0], "cd") == 0) {
     changeDirectory(arguments[1]);
     freeCommand(0);
     return;
   }
-  for (int i = 0; i < currentEntry->argumentCount; i++) {
-    printf("Current entry has %s at %d\n", currentEntry->arguments[i], i);
+  for (int i = 0; i < currentEntry.argumentCount; i++) {
+    printf("Current entry has %s at %d\n", currentEntry.arguments[i], i);
   };
   int pipeFD[2], previousPipeFD[2];
+  pipeFD[0] = -1;
+  pipeFD[1] = -1;
+  previousPipeFD[0] = -1;
+  previousPipeFD[1] = -1;
   int outputFD = 1;
   int inputFD = 0;
   int i = 0;
   int first = 1;
   // 1st do while loop I've ever wrote
+
   do {
-    printf("iteration!\n");
-    currentEntry = commandHolder[i];
-
-    // If we need to i/o redirect && not pipe(Which shouldn't be valid anyway)
-    if (currentEntry->hasOutput && currentEntry->pipeTo <= 0) {
-      // Check if we need to append i.e >> passed ijn
-      if (currentEntry->append) {
-        outputFD =
-            open(currentEntry->outputFile, O_CREAT | O_APPEND | O_WRONLY, 0644);
-      } else {
-        outputFD =
-            open(currentEntry->outputFile, O_CREAT | O_TRUNC | O_WRONLY, 0644);
-      }
-    }
-
-    // If this is the first task and it has an input file
-    if (first && currentEntry->hasInput) {
-      inputFD = open(currentEntry->inputFile, O_RDONLY);
-      if (inputFD <= 0) {
-        inputFD = -1;
-      } // If it broke, reset it to -1
-    }
-
-    // If it has to pipe to a task
-    if (currentEntry->pipeTo > 0) {
-      pipe(pipeFD);
-    }
-
-    // Fork into child
-    if ((childPID = fork()) == 0) {
-      printf("Made it into child!\n");
-      // If its the first child with
-      if (first) {
-        if (inputFD != 1) { // If input fd didn't fail
-          dup2(inputFD, 0);
-          close(inputFD);
-        }
-      } else if (!first) {
-        // Copy old pipes output for standard of this chilsd
-        dup2(previousPipeFD[0], 0);
-        close(previousPipeFD[0]); // Cleanup
-        // close(previousPipeFD[1]);//Cleanup
-      }
-
-      // If we have to pipe again
-      if (currentEntry->pipeTo > 0 && currentEntry->hasOutput) {
-        dup2(outputFD, 1); // Override our standard in with write end of pipe
-        close(outputFD);
-      } else if (currentEntry->pipeTo > 0) {
-        // Else I/O Redirect
-        dup2(outputFD, 1);
-        close(pipeFD[1]);
-      }
-
-      char **execArgs =
-          malloc(sizeof(char *) * (currentEntry->argumentCount + 1));
-      for (int i = 0; i < currentEntry->argumentCount; i++) {
-        execArgs[i] = currentEntry->arguments[i];
-      }
-      execArgs[currentEntry->argumentCount] = NULL;
-      // printf("Made it into child!\n");
-      if (execvp(execArgs[0], execArgs) < 0) {
-        write(2, "Exec failed!\n", 14);
-        free(execArgs);
-        exit(-1);
-      }
-      free(execArgs);
-      close(pipeFD[0]);
-      close(pipeFD[1]);
-      exit(0);
-    } else {
-      if (!first) {
-        close(previousPipeFD[0]);
-        close(previousPipeFD[1]);
-      }
-      if (currentEntry->pipeTo > 0) {
-        previousPipeFD[0] = pipeFD[0];
-        previousPipeFD[1] = pipeFD[1];
-      }
-    }
-    wait(NULL);
-    printf("Made it past child\n");
-    first = 0;
-    i++;
+    break;
   } while (i < commandHolderEntriesUsed + 1);
+  // do {
+  //   printf("iteration!\n");
+  //   currentEntry = commandHolder[i];
+
+  //   // If we need to i/o redirect && not pipe(Which shouldn't be valid anyway)
+  //   if (currentEntry.hasOutput && currentEntry.pipeTo <= 0) {
+  //     // Check if we need to append i.e >> passed ijn
+  //     if (currentEntry.append) {
+  //       outputFD =
+  //           open(currentEntry.outputFile, O_CREAT | O_APPEND | O_WRONLY, 0644);
+  //     } else {
+  //       outputFD =
+  //           open(currentEntry.outputFile, O_CREAT | O_TRUNC | O_WRONLY, 0644);
+  //     }
+  //   }
+
+  //   // If this is the first task and it has an input file
+  //   if (first && currentEntry.hasInput) {
+  //     inputFD = open(currentEntry.inputFile, O_RDONLY);
+  //     if (inputFD <= 0) {
+  //       inputFD = -1;
+  //     } // If it broke, reset it to -1
+  //   }
+
+  //   // If it has to pipe to a task
+  //   if (currentEntry.pipeTo > 0) {
+  //     pipe(pipeFD);
+  //   }
+
+  //   // Fork into child
+  //   if ((childPID = fork()) == 0) {
+  //     printf("Made it into child!\n");
+  //     // If its the first child with
+  //     if (first) {
+  //       if (inputFD > 1) { // If input fd didn't fail
+  //         dup2(inputFD, 0);
+  //         close(inputFD);
+  //       }
+  //     } else if (!first) {
+  //       // Copy old pipes output for standard of this chilsd
+  //       dup2(previousPipeFD[0], 0);
+  //       close(previousPipeFD[0]); // Cleanup
+  //       // close(previousPipeFD[1]);//Cleanup
+  //     }
+
+  //     // If we have to pipe again
+  //     if (currentEntry.pipeTo > 0 && currentEntry.hasOutput) {
+  //       dup2(outputFD, 1); // Override our standard in with write end of pipe
+  //       close(outputFD);
+  //     } else if (currentEntry.pipeTo > 0) {
+  //       // Else I/O Redirect
+  //       dup2(outputFD, 1);
+  //       close(pipeFD[1]);
+  //     }
+
+  //     char **execArgs =
+  //         malloc(sizeof(char *) * (currentEntry.argumentCount + 1));
+  //     for (int i = 0; i < currentEntry.argumentCount; i++) {
+  //       execArgs[i] = currentEntry.arguments[i];
+  //     }
+  //     execArgs[currentEntry.argumentCount] = NULL;
+  //     // printf("Made it into child!\n");
+  //     if (execvp(execArgs[0], execArgs) < 0) {
+  //       write(2, "Exec failed!\n", 14);
+  //       free(execArgs);
+  //       exit(-1);
+  //     }
+  //     free(execArgs);
+  //     if (pipeFD[0] > 0)
+  //       close(pipeFD[0]);
+  //     if (pipeFD[1] > 0)
+  //       close(pipeFD[1]);
+  //     exit(0);
+  //   } else {
+  //     if (!first) {
+  //       if (previousPipeFD[0] > 0)
+  //         close(previousPipeFD[0]);
+  //       if (previousPipeFD[1] > 0)
+  //         close(previousPipeFD[1]);
+  //     }
+  //     if (currentEntry.pipeTo > 0) {
+  //       previousPipeFD[0] = pipeFD[0];
+  //       previousPipeFD[1] = pipeFD[1];
+  //     }
+  //   }
+  //   wait(NULL);
+  //   printf("Made it past child\n");
+  //   first = 0;
+  //   i++;
+  // } while (i < commandHolderEntriesUsed + 1);
 
   freeCommand(-1);
 }
@@ -271,7 +283,7 @@ void returnHome(char *homeDirectory) {
     exit(1);
   }
 }
-void storeCommand(command *command, int pos) {
+void storeCommand(command command, int pos) {
   commandHolder[pos] = command;
   commandHolderInit++;
 }
@@ -284,19 +296,15 @@ void freeCommand(int wasError) {
   if (commandHolderInit == -1) {
     return;
   }
-  for (int i = 0; i <= commandHolderEntriesUsed; i++) {
-    // printf("On iteration %d\n", i);
-    for (int j = 0; j < commandHolder[i]->argumentCount; j++) {
-      free(commandHolder[i]->arguments[j]);
+  for (int i = 0; i < commandHolderEntriesUsed; i++) {
+    for (int j = 0; j < commandHolder[i].argumentCount; j++) {
+      free(commandHolder[i].arguments[j]);
     }
-    free(commandHolder[i]->arguments);
-    if (commandHolder[i]->hasOutput)
-      free(commandHolder[i]->outputFile);
-    if (commandHolder[i]->hasInput)
-      free(commandHolder[i]->inputFile);
-  }
-  for (int i = 0; i < maxCommandChain; i++) {
-    free(commandHolder[i]);
+    free(commandHolder[i].arguments);
+    if (commandHolder[i].hasOutput)
+      free(commandHolder[i].outputFile);
+    if (commandHolder[i].hasInput)
+      free(commandHolder[i].inputFile);
   }
   free(commandHolder);
   commandHolderInit = -1;
@@ -306,47 +314,47 @@ void freeCommand(int wasError) {
   }
 }
 
-void storeInput(command *toAdd, int commandIndex) {
-  toAdd->inputFile =
+void storeInput(command toAdd, int commandIndex) {
+  toAdd.inputFile =
       malloc(sizeof(char) *
              strlen(p->entries[p->commandCount - 1].args[commandIndex]));
-  strcpy(toAdd->inputFile, p->entries[p->commandCount - 1].args[commandIndex]);
-  toAdd->hasInput = 1;
+  strcpy(toAdd.inputFile, p->entries[p->commandCount - 1].args[commandIndex]);
+  toAdd.hasInput = 1;
 }
-void storeOutput(command *toAdd, int commandIndex, int append) {
-  toAdd->outputFile =
+void storeOutput(command toAdd, int commandIndex, int append) {
+  toAdd.outputFile =
       malloc(sizeof(char) *
              strlen(p->entries[p->commandCount - 1].args[commandIndex]));
-  toAdd->outputFile = p->entries[p->commandCount - 1].args[commandIndex];
-  toAdd->hasOutput = 1;
+  toAdd.outputFile = p->entries[p->commandCount - 1].args[commandIndex];
+  toAdd.hasOutput = 1;
   if (append == 1)
-    toAdd->append = 1;
+    toAdd.append = 1;
 }
 /*
 Another hour of hand-to-hand combat with pointers and this is still garbage code
 */
 void parseCommand() {
   int wordsToCheck = p->entries[p->commandCount - 1].argumentCount;
-  commandHolder = malloc(sizeof(command *) * maxCommandChain);
+  commandHolder = malloc(sizeof(command) * maxCommandChain);
   commandHolderInit = 0;
+  commandHolderEntriesUsed = 0;
   for (int i = 0; i < maxCommandChain; i++) {
-    commandHolder[i] = malloc(sizeof(command));
-    commandHolder[i]->pipeTo = 0;
-    commandHolder[i]->argumentCount = 0;
-    commandHolder[i]->append = 0;
-    commandHolder[i]->runNext = 0;
-    commandHolder[i]->backgroundTask = 0;
-    commandHolder[i]->hasInput = 0;
-    commandHolder[i]->hasOutput = 0;
-    commandHolder[i]->arguments = malloc(sizeof(argument *) * maxSubArgs);
+    commandHolder[i].pipeTo = 0;
+    commandHolder[i].argumentCount = 0;
+    commandHolder[i].append = 0;
+    commandHolder[i].runNext = 0;
+    commandHolder[i].backgroundTask = 0;
+    commandHolder[i].hasInput = 0;
+    commandHolder[i].hasOutput = 0;
+    commandHolder[i].arguments = malloc(sizeof(argument*) * maxSubArgs);
     commandHolderInit++;
+    commandHolderEntriesUsed++;
   }
   char *wordBuffer[wordsToCheck];
   memset(&wordBuffer, 0, sizeof(wordBuffer));
 
   int bufPointer = 0;
   int currentCommand = 0;
-  commandHolderEntriesUsed = 0;
   for (int i = 0; i < wordsToCheck; i++) {
     // printf("I: %d, words to check: %d\n", i, wordsToCheck);
     char *currentWord = p->entries[p->commandCount - 1].args[i];
@@ -380,10 +388,11 @@ void parseCommand() {
         break;
       case (38): // Repesents &
         if (wordLength == 1) {
-          commandHolder[currentCommand]->backgroundTask = 1;
+          commandHolder[currentCommand].backgroundTask = 1;
           break;
-        } else if (wordLength == 2 && i != wordsToCheck && currentWord[1]==38) {
-          commandHolder[currentCommand]->runNext = currentCommand + 1;
+        } else if (wordLength == 2 && i != wordsToCheck &&
+                   currentWord[1] == 38) {
+          commandHolder[currentCommand].runNext = currentCommand + 1;
           goto increment;
           break;
         } else {
@@ -396,7 +405,7 @@ void parseCommand() {
           freeCommand(1);
           return;
         } else {
-          commandHolder[currentCommand]->pipeTo = currentCommand + 1;
+          commandHolder[currentCommand].pipeTo = currentCommand + 1;
           goto increment;
           break;
         }
@@ -410,13 +419,13 @@ void parseCommand() {
         i++;
         break;
       default:
-        commandHolder[currentCommand]->arguments[bufPointer] = malloc(
+        commandHolder[currentCommand].arguments[bufPointer] = malloc(
             sizeof(char) *
             (wordLength + 1)); // Allocate memory for string + null terminator
-        strncpy(commandHolder[currentCommand]->arguments[bufPointer],
+        strncpy(commandHolder[currentCommand].arguments[bufPointer],
                 currentWord, wordLength + 1);
         bufPointer++;
-        commandHolder[currentCommand]->argumentCount++;
+        commandHolder[currentCommand].argumentCount++;
         break;
       }
     }
