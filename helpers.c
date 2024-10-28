@@ -55,74 +55,74 @@ void executeCommand() {
   // 1st do while loop I've ever wrote
   int stdinBackup = -1;
   int stdoutBackup = -1;
-do {
+  do {
     needPipe = 0;
     command currentCommand = commandHolder[i];
 
     if (currentCommand.pipeTo != 0 && i + 1 < commandsToExecute) {
-        pipe(pipeFD);
-        commandHolder[i + 1].hasInput = 2;
-        needPipe = 1;
+      pipe(pipeFD);
+      commandHolder[i + 1].hasInput = 2;
+      needPipe = 1;
     }
 
     childPID = fork();
-    if (childPID == 0) {  
+    if (childPID == 0) {
 
-        if (currentCommand.hasInput > 1) {
-            dup2(atoi(currentCommand.inputFile), 0);  
-        } else if (currentCommand.hasInput == 1) {
-            inputFD = open(currentCommand.inputFile, O_RDONLY);
-            if (inputFD < 0) {
-                perror("Error opening input file");
-                exit(1);
-            }
-            dup2(inputFD, 0);
-            close(inputFD);
+      if (currentCommand.hasInput > 1) {
+        dup2(atoi(currentCommand.inputFile), 0);
+      } else if (currentCommand.hasInput == 1) {
+        inputFD = open(currentCommand.inputFile, O_RDONLY);
+        if (inputFD < 0) {
+          perror("Error opening input file");
+          exit(1);
         }
+        dup2(inputFD, 0);
+        close(inputFD);
+      }
 
-
-        if (currentCommand.hasOutput == 1) {
-            outputFD = open(currentCommand.outputFile,
-                            O_CREAT | (currentCommand.append ? O_APPEND : O_TRUNC) | O_WRONLY, 0644);
-            if (outputFD < 0) {
-                perror("Error opening output file");
-                exit(1);
-            }
-            dup2(outputFD, 1);
-            close(outputFD);
-        } else if (needPipe) { 
-            dup2(pipeFD[1], 1);  
-            close(pipeFD[0]);  
-            close(pipeFD[1]);   
+      if (currentCommand.hasOutput == 1) {
+        outputFD = open(currentCommand.outputFile,
+                        O_CREAT | (currentCommand.append ? O_APPEND : O_TRUNC) |
+                            O_WRONLY,
+                        0644);
+        if (outputFD < 0) {
+          perror("Error opening output file");
+          exit(1);
         }
+        dup2(outputFD, 1);
+        close(outputFD);
+      } else if (needPipe) {
+        dup2(pipeFD[1], 1);
+        close(pipeFD[0]);
+        close(pipeFD[1]);
+      }
 
-
-        char **execArgs = malloc(sizeof(char *) * (currentCommand.argumentCount + 1));
-        for (int j = 0; j < currentCommand.argumentCount; j++) {
-            execArgs[j] = currentCommand.arguments[j];
-        }
-        execArgs[currentCommand.argumentCount] = NULL;
-
-        if (execvp(execArgs[0], execArgs) < 0) {
-            perror("Exec failed");
-            free(execArgs);
-            exit(1);
-        }
+      char **execArgs =
+          malloc(sizeof(char *) * (currentCommand.argumentCount + 1));
+      for (int j = 0; j < currentCommand.argumentCount; j++) {
+        char writeBuf[128];
+        execArgs[j] = currentCommand.arguments[j];
+      }
+      execArgs[currentCommand.argumentCount] = NULL;
+      if (execvp(execArgs[0], execArgs) < 0) {
+        perror("Exec failed");
         free(execArgs);
-        exit(0);
+        exit(1);
+      }
+      free(execArgs);
+      exit(0);
     }
-
 
     if (needPipe) {
-        close(pipeFD[1]); 
-        char fdBuf[8];
-        sprintf(fdBuf, "%d", pipeFD[0]);
-        commandHolder[i + 1].inputFile = strdup(fdBuf); 
+      close(pipeFD[1]);
+      char fdBuf[8];
+      sprintf(fdBuf, "%d", pipeFD[0]);
+      commandHolder[i + 1].inputFile = strdup(fdBuf);
     }
 
-    wait(NULL); 
+    wait(NULL);
     i++;
-} while (i < commandsToExecute);
+  } while (i < commandsToExecute);
   dup2(stdinBackup, 0);
   dup2(stdoutBackup, 1);
   freeCommand(-1);
@@ -324,8 +324,6 @@ code
 */
 void parseCommand() {
   int wordsToCheck = p->entries[p->commandCount - 1].argumentCount;
-  // printf("command count at 3 is %s\n", p->entries[p->commandCount-1].args[2]);
-  // printf("Arg count has %d\n", p->entries[p->commandCount-1].argumentCount);
   commandHolder = malloc(sizeof(command) * maxCommandChain);
   commandHolderInit = 0;
   commandHolderEntriesUsed = 0;
@@ -364,7 +362,7 @@ void parseCommand() {
       case (62): // Represents >
         if (wordLength == 1 && i != wordsToCheck) {
           storeOutput(currentCommand, i + 1, 0);
-          goto incrementPartial;
+          goto increment;
           break;
         } else if (wordLength == 2 && currentWord[1] == 62 &&
                    i != wordsToCheck) {
@@ -396,16 +394,17 @@ void parseCommand() {
           return;
         } else {
           commandHolder[currentCommand].pipeTo = currentCommand + 1;
-          goto increment;
+          goto incrementPartial;
           break;
         }
         break;
       case (-1):
       increment:
+        i++;
+      incrementPartial:
         currentCommand++;
         commandHolderEntriesUsed++;
         commandsToExecute++;
-      incrementPartial:
         bufPointer = 0;
         break;
       default:
