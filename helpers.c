@@ -35,6 +35,9 @@ void executeCommand() {
     freeCommand(0);
     return;
   }
+  if(!strcmp(arguments[0], "quit") || !strcmp(arguments[0], "exit")){
+    cleanup(1);
+  }
   // printf("Has command of %s, input file %s and output file %s\n",
   // arguments[0],
   //        commandHolder[0].inputFile, currentEntry.outputFile);
@@ -104,13 +107,14 @@ void executeCommand() {
         execArgs[j] = currentCommand.arguments[j];
       }
       execArgs[currentCommand.argumentCount] = NULL;
-      if (execvp(execArgs[0], execArgs) < 0) {
+      if ((execvp(execArgs[0], execArgs)) < 0) {
         perror("Exec failed");
         free(execArgs);
         exit(1);
+      } else {
+        free(execArgs);
+        exit(0);
       }
-      free(execArgs);
-      exit(0);
     }
 
     if (needPipe) {
@@ -119,8 +123,9 @@ void executeCommand() {
       sprintf(fdBuf, "%d", pipeFD[0]);
       commandHolder[i + 1].inputFile = strdup(fdBuf);
     }
-
+    signal(SIGINT, childSignalHandler);
     wait(NULL);
+    signal(SIGINT, cleanup);
     i++;
   } while (i < commandsToExecute);
   dup2(stdinBackup, 0);
@@ -135,6 +140,7 @@ void freeArgumentList() {
   if (entriesInitalized >= 0) {
     for (int i = 0; i < entriesInitalized; i++) {
       int stuffToFree = p->entries[i].argumentCount;
+      // printf("Stuff to free is %d\n", stuffToFree);
       for (int j = 0; j < stuffToFree; j++) {
         free(p->entries[i].args[j]);
       }
@@ -276,12 +282,12 @@ void storeCommand(command command, int pos) {
 American Function(cuz its the land of the free)
 */
 void freeCommand(int wasError) {
-  // printf("Command holder entries used is %d\n", commandHolderEntriesUsed);
   if (commandHolderInit == -1) {
     return;
   }
-  for (int i = 0; i < commandHolderEntriesUsed; i++) {
+  for (int i = 0; i < commandHolderInit; i++) {
     for (int j = 0; j < commandHolder[i].argumentCount; j++) {
+
       free(commandHolder[i].arguments[j]);
     }
     free(commandHolder[i].arguments);

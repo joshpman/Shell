@@ -23,7 +23,7 @@ void storeArgument(int charsInArg, char *argumentBuffer, int status);
 void setupHelper();
 void parseCommand();
 void freeCommand(int wasError);
-
+void childSignalHandler(int signum);
 
 //Just a typedef for clarity on purpose of strings
 typedef char* argument;
