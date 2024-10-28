@@ -16,6 +16,7 @@ command *commandHolder;
 int commandHolderInit = -1;
 int commandHolderEntriesUsed = 0;
 int commandsToExecute = 1;
+sig_atomic_t action = 0;
 void setupHelper() {
   p = malloc(sizeof(previousInputs));
   p->maxCommands = historySize;
@@ -42,7 +43,7 @@ void executeCommand() {
   // arguments[0],
   //        commandHolder[0].inputFile, currentEntry.outputFile);
   //  return;
-
+action = 0;
   int pipeFD[2], previousPipeFD[2];
   pipeFD[0] = -1;
   pipeFD[1] = -1;
@@ -126,6 +127,7 @@ void executeCommand() {
     signal(SIGINT, childSignalHandler);
     wait(NULL);
     signal(SIGINT, cleanup);
+    if(action==1) break;
     i++;
   } while (i < commandsToExecute);
   dup2(stdinBackup, 0);
@@ -133,7 +135,10 @@ void executeCommand() {
   freeCommand(-1);
 }
 
-void childSignalHandler(int signum) { kill(childPID, SIGINT); }
+void childSignalHandler(int signum) { 
+  action = 1;
+  kill(childPID, SIGINT);
+   }
 
 // Pro memory freeing just don't read any of the code
 void freeArgumentList() {
