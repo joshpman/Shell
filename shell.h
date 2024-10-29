@@ -9,6 +9,7 @@
 #include <termios.h>
 #include <fcntl.h>
 #include <unistd.h>
+#define maxSubArgs 8
 void freeArgumentList();
 char *getHomeDirectory();
 void changeDirectory(char *newDirectory);

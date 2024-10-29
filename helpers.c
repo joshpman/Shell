@@ -4,7 +4,7 @@
 #define historySize 128
 #define maxArguments 128
 #define maxCommandChain 8
-#define maxSubArgs 8
+
 char *commands[] = {"cd"};
 char **argumentListPtr = 0;
 int argCount = 0;
@@ -26,9 +26,7 @@ void setupHelper() {
   pInit = 2;
 }
 void executeCommand() {
-  // printf("Command list has %d entries\n", commandHolderEntriesUsed);
-  // printf("This function has %d for pipeTo\n", currentEntry->pipeTo);
-  // printf("This function has %s for outputFile\n", currentEntry->outputFile);
+
   command currentEntry = commandHolder[0];
   argument *arguments = currentEntry.arguments;
   if (strcmp(arguments[0], "cd") == 0) {
@@ -36,14 +34,10 @@ void executeCommand() {
     freeCommand(0);
     return;
   }
-  if(!strcmp(arguments[0], "quit") || !strcmp(arguments[0], "exit")){
+  if (!strcmp(arguments[0], "quit") || !strcmp(arguments[0], "exit")) {
     cleanup(1);
   }
-  // printf("Has command of %s, input file %s and output file %s\n",
-  // arguments[0],
-  //        commandHolder[0].inputFile, currentEntry.outputFile);
-  //  return;
-action = 0;
+  action = 0;
   int pipeFD[2], previousPipeFD[2];
   pipeFD[0] = -1;
   pipeFD[1] = -1;
@@ -127,7 +121,8 @@ action = 0;
     signal(SIGINT, childSignalHandler);
     wait(NULL);
     signal(SIGINT, cleanup);
-    if(action==1) break;
+    if (action == 1)
+      break;
     i++;
   } while (i < commandsToExecute);
   dup2(stdinBackup, 0);
@@ -135,17 +130,16 @@ action = 0;
   freeCommand(-1);
 }
 
-void childSignalHandler(int signum) { 
+void childSignalHandler(int signum) {
   action = 1;
   kill(childPID, SIGINT);
-   }
+}
 
 // Pro memory freeing just don't read any of the code
 void freeArgumentList() {
   if (entriesInitalized >= 0) {
     for (int i = 0; i < entriesInitalized; i++) {
       int stuffToFree = p->entries[i].argumentCount;
-      // printf("Stuff to free is %d\n", stuffToFree);
       for (int j = 0; j < stuffToFree; j++) {
         free(p->entries[i].args[j]);
       }
@@ -192,7 +186,8 @@ void pushEntry(input *i) {
     memmove(&p->entries[1], &p->entries[0],
             (historySize - 1) * sizeof(input *));
   }
-  p->entries[p->commandCount] = *i;
+
+  memcpy(&p->entries[p->commandCount], i, sizeof(*i));
 
   // Ternary hell
   p->commandCount != p->maxCommands ? p->commandCount++ : 0;
@@ -310,21 +305,16 @@ void freeCommand(int wasError) {
 }
 
 void storeInput(int commandHolderIndex, int commandIndex) {
-  commandHolder[commandHolderIndex].inputFile =
-      malloc((sizeof(char) *
-              strlen(p->entries[p->commandCount - 1].args[commandIndex])) +
-             1);
-  strcpy(commandHolder[commandHolderIndex].inputFile,
-         p->entries[p->commandCount - 1].args[commandIndex]);
+  commandHolder[commandHolderIndex].outputFile =
+      strdup(p->entries[p->commandCount - 1].args[commandIndex]);
+
   commandHolder[commandHolderIndex].hasInput = 1;
 }
+
 void storeOutput(int commandHolderIndex, int commandIndex, int append) {
   commandHolder[commandHolderIndex].outputFile =
-      malloc((sizeof(char) *
-              strlen(p->entries[p->commandCount - 1].args[commandIndex])) +
-             1);
-  commandHolder[commandHolderIndex].outputFile =
-      p->entries[p->commandCount - 1].args[commandIndex];
+      strdup(p->entries[p->commandCount - 1].args[commandIndex]);
+
   commandHolder[commandHolderIndex].hasOutput = 1;
   if (append == 1)
     commandHolder[commandHolderIndex].append = 1;
@@ -346,7 +336,7 @@ void parseCommand() {
     commandHolder[i].backgroundTask = 0;
     commandHolder[i].hasInput = 0;
     commandHolder[i].hasOutput = 0;
-    commandHolder[i].arguments = malloc(sizeof(argument *) * maxSubArgs);
+    commandHolder[i].arguments = malloc(sizeof(argument) * maxSubArgs);
     commandHolderInit++;
     // commandHolderEntriesUsed++;
   }

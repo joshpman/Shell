@@ -38,7 +38,6 @@ int main(int argc, char **argv) {
   signal(SIGINT, cleanup);
   int nfds = 1;
   fd_set fileSet;
-  char *currentDir = "] ";
   char bufferedText[512];
   memset(bufferedText, 0, sizeof(bufferedText));
   int inputLength = 0;
