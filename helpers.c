@@ -4,19 +4,26 @@
 #define historySize 128
 #define maxArguments 128
 #define maxCommandChain 8
+command *commandHolder;
+previousInputs *p;
 
-char *commands[] = {"cd"};
+// Globals for managing exec's and signals
+sig_atomic_t action = 0;
+int childPID;
+
+// Globals for managing the argument list constructed
 char **argumentListPtr = 0;
 int argCount = 0;
-int childPID;
-previousInputs *p;
+
+// Globals for managing the previous entries
 int pInit = 0;
 int entriesInitalized = -1;
-command *commandHolder;
+
+// Globals for managing the commandHolder
 int commandHolderInit = -1;
 int commandHolderEntriesUsed = 0;
 int commandsToExecute = 1;
-sig_atomic_t action = 0;
+
 void setupHelper() {
   p = malloc(sizeof(previousInputs));
   p->maxCommands = historySize;
@@ -25,34 +32,48 @@ void setupHelper() {
   p->entries = malloc(historySize * sizeof(input *));
   pInit = 2;
 }
+
 void executeCommand() {
 
   command currentEntry = commandHolder[0];
   argument *arguments = currentEntry.arguments;
+
+  // CD is a fake command so we have to catch it here and use chdir
   if (strcmp(arguments[0], "cd") == 0) {
     changeDirectory(arguments[1]);
     freeCommand(0);
     return;
   }
+  // Exit commands
   if (!strcmp(arguments[0], "quit") || !strcmp(arguments[0], "exit")) {
     cleanup(1);
   }
+
+  // Signal action - if 0, run normally, else we exit
   action = 0;
+
+  // Setting up pipes to manage sending data between different commands
   int pipeFD[2], previousPipeFD[2];
-  pipeFD[0] = -1;
-  pipeFD[1] = -1;
-  previousPipeFD[0] = -1;
-  previousPipeFD[1] = -1;
+  pipeFD[0] = pipeFD[1] = previousPipeFD[0] = previousPipeFD[1] = -1;
+
+  // Setting up FD's to manage IO Redirection
   int outputFD = 1;
   int inputFD = 0;
-  int i = 0;
+
+  // Declaring values to use to backup stdin/stdout file descriptor
+  int stdinBackup = -1;
+  int stdoutBackup = -1;
+
+  // First exec flag
   int first = 1;
+
+  // Various state flags to use in do-while logic
   int pipeFDset = 0;
   int needPipe = 0;
   int pipeWriteBackup = 0;
-  // 1st do while loop I've ever wrote
-  int stdinBackup = -1;
-  int stdoutBackup = -1;
+
+  // Iteration counter for loop
+  int i = 0;
   do {
     needPipe = 0;
     command currentCommand = commandHolder[i];
@@ -208,10 +229,8 @@ void storeArgument(int charsInArg, char *argumentBuffer, int status) {
     currentCommand->argumentCount = 0;
     break;
   case (1):
-    currentCommand->args[currentCommand->argumentCount] =
-        malloc((charsInArg + 1) * sizeof(char));
     argumentBuffer[charsInArg] = '\0';
-    strcpy(currentCommand->args[currentCommand->argumentCount], argumentBuffer);
+    currentCommand->args[currentCommand->argumentCount] = strdup(argumentBuffer);
     currentCommand->argumentCount++;
     break;
   case (2):
@@ -409,11 +428,7 @@ void parseCommand() {
         bufPointer = 0;
         break;
       default:
-        commandHolder[currentCommand].arguments[bufPointer] = malloc(
-            sizeof(char) *
-            (wordLength + 1)); // Allocate memory for string + null terminator
-        strncpy(commandHolder[currentCommand].arguments[bufPointer],
-                currentWord, wordLength + 1);
+        commandHolder[currentCommand].arguments[bufPointer] = strdup(currentWord);
         bufPointer++;
         commandHolder[currentCommand].argumentCount++;
         break;
