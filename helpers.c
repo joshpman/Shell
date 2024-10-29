@@ -64,13 +64,8 @@ void executeCommand() {
   int stdinBackup = -1;
   int stdoutBackup = -1;
 
-  // First exec flag
-  int first = 1;
-
   // Various state flags to use in do-while logic
-  int pipeFDset = 0;
   int needPipe = 0;
-  int pipeWriteBackup = 0;
 
   // Iteration counter for loop
   int i = 0;
@@ -119,7 +114,6 @@ void executeCommand() {
       char **execArgs =
           malloc(sizeof(char *) * (currentCommand.argumentCount + 1));
       for (int j = 0; j < currentCommand.argumentCount; j++) {
-        char writeBuf[128];
         execArgs[j] = currentCommand.arguments[j];
       }
       execArgs[currentCommand.argumentCount] = NULL;
@@ -249,7 +243,6 @@ void storeArgument(int charsInArg, char *argumentBuffer, int status) {
 void buildArgs(char *buffer, int bytesRead) {
   if (bytesRead == 0)
     return;
-  int firstFound = 0;
   int bytesProcessed = 0;
   int charsInArg = 0;
   char argumentBuffer[256];

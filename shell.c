@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
     memset(readHere, 0, bufferSize);
     FD_ZERO(&fileSet);
     FD_SET(0, &fileSet);
-    int selectVal = select(nfds, &fileSet, NULL, NULL, NULL);
+    select(nfds, &fileSet, NULL, NULL, NULL);
     if (FD_ISSET(0, &fileSet)) {
       ssize_t bytesIn = read(0, readHere, bufferSize);
       if (bytesIn > 0 && readHere[0]!=9)
