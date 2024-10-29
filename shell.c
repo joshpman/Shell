@@ -1,8 +1,6 @@
 
 #include "shell.h"
-#include <termios.h>
-#define bufferSize 8192
-#define quit "quit"
+
 char *readHere;
 struct termios backup;
 int memAll, termSet = 0;

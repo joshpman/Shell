@@ -1,9 +1,5 @@
 #include "shell.h"
-#include <fcntl.h>
-#define shellHeader "[My-Shell] "
-#define historySize 128
-#define maxArguments 128
-#define maxCommandChain 8
+
 command *commandHolder;
 previousInputs *p;
 
@@ -40,7 +36,11 @@ void executeCommand() {
 
   // CD is a fake command so we have to catch it here and use chdir
   if (strcmp(arguments[0], "cd") == 0) {
-    changeDirectory(arguments[1]);
+    if (currentEntry.argumentCount == 1) {
+      returnHome(getHomeDirectory());
+    } else {
+      changeDirectory(arguments[1]);
+    }
     freeCommand(0);
     return;
   }
@@ -180,12 +180,6 @@ void freeArgumentList() {
     freeCommand(-1);
 }
 
-char *getHomeDirectory() {
-  uid_t callingUserID = getuid();
-  struct passwd *userPasswdFile = getpwuid(callingUserID);
-  return userPasswdFile->pw_dir;
-}
-
 /*
 So many bugs to fix before I write this
 */
@@ -230,7 +224,8 @@ void storeArgument(int charsInArg, char *argumentBuffer, int status) {
     break;
   case (1):
     argumentBuffer[charsInArg] = '\0';
-    currentCommand->args[currentCommand->argumentCount] = strdup(argumentBuffer);
+    currentCommand->args[currentCommand->argumentCount] =
+        strdup(argumentBuffer);
     currentCommand->argumentCount++;
     break;
   case (2):
@@ -280,18 +275,6 @@ void buildArgs(char *buffer, int bytesRead) {
   storeArgument(0, 0, 2);
 }
 
-void changeDirectory(char *newDirectory) {
-  if (chdir(newDirectory) < 0) {
-    write(2, "cd failed: bad path!\n", 22);
-  }
-}
-
-void returnHome(char *homeDirectory) {
-  if (chdir(homeDirectory) < 0) {
-    write(2, "Setup failed!\n", 15);
-    exit(1);
-  }
-}
 void storeCommand(command command, int pos) {
   commandHolder[pos] = command;
   commandHolderInit++;
@@ -428,7 +411,8 @@ void parseCommand() {
         bufPointer = 0;
         break;
       default:
-        commandHolder[currentCommand].arguments[bufPointer] = strdup(currentWord);
+        commandHolder[currentCommand].arguments[bufPointer] =
+            strdup(currentWord);
         bufPointer++;
         commandHolder[currentCommand].argumentCount++;
         break;
@@ -440,53 +424,54 @@ void parseCommand() {
 /*
 This is old and just here for reference
 */
-void executeCommand2() {
-  char **argumentList = p->entries[p->commandCount - 1].args;
-  int wordCount = p->entries[p->commandCount - 1].argumentCount;
-  if (strcmp(argumentList[0], "cd") == 0) {
-    changeDirectory(argumentList[1]);
-  } else if (strcmp(argumentList[0], "quit") == 0) {
-    cleanup(0);
-  } else {
-    int pipeFD[2];
-    pipe(pipeFD);
-    pid_t child = fork();
-    childPID = child;
-    if (child == 0) {
-      if (strcmp(argumentList[0], "man") == 0 ||
-          strcmp(argumentList[0], "less")) {
-        if (execvp(argumentList[0], argumentList) < 0) {
-          write(2, "Command not found!\n", 20);
-          exit(1);
-        }
-      } else {
-        dup2(pipeFD[1], 1);
-        close(pipeFD[1]);
-        if (execvp(argumentList[0], argumentList) < 0) {
-          write(2, "Command not found!\n", 20);
-          exit(1);
-        }
-      }
-    }
-    if (strcmp(argumentList[0], "man") == 0 ||
-        strcmp(argumentList[0], "less")) {
-      signal(SIGINT, childSignalHandler);
-      close(pipeFD[1]);
-      char *returnData = malloc(sizeof(char) * 64000);
-      waitpid(child, NULL, 0);
-      int bytesRead = 0;
-      while (read(pipeFD[0], &returnData[bytesRead], sizeof(returnData)) > 0) {
-        write(1, returnData, strlen(returnData));
-        memset(returnData, 0, sizeof(&returnData));
-      }
-      free(returnData);
-      close(pipeFD[0]);
-    } else {
-      waitpid(child, NULL, 0);
-    }
-    // freeArgumentList();
-    argumentListPtr = 0;
-    argCount = 0;
-    signal(SIGINT, cleanup);
-  }
-}
+// void executeCommand2() {
+//   char **argumentList = p->entries[p->commandCount - 1].args;
+//   int wordCount = p->entries[p->commandCount - 1].argumentCount;
+//   if (strcmp(argumentList[0], "cd") == 0) {
+//     changeDirectory(argumentList[1]);
+//   } else if (strcmp(argumentList[0], "quit") == 0) {
+//     cleanup(0);
+//   } else {
+//     int pipeFD[2];
+//     pipe(pipeFD);
+//     pid_t child = fork();
+//     childPID = child;
+//     if (child == 0) {
+//       if (strcmp(argumentList[0], "man") == 0 ||
+//           strcmp(argumentList[0], "less")) {
+//         if (execvp(argumentList[0], argumentList) < 0) {
+//           write(2, "Command not found!\n", 20);
+//           exit(1);
+//         }
+//       } else {
+//         dup2(pipeFD[1], 1);
+//         close(pipeFD[1]);
+//         if (execvp(argumentList[0], argumentList) < 0) {
+//           write(2, "Command not found!\n", 20);
+//           exit(1);
+//         }
+//       }
+//     }
+//     if (strcmp(argumentList[0], "man") == 0 ||
+//         strcmp(argumentList[0], "less")) {
+//       signal(SIGINT, childSignalHandler);
+//       close(pipeFD[1]);
+//       char *returnData = malloc(sizeof(char) * 64000);
+//       waitpid(child, NULL, 0);
+//       int bytesRead = 0;
+//       while (read(pipeFD[0], &returnData[bytesRead], sizeof(returnData)) > 0)
+//       {
+//         write(1, returnData, strlen(returnData));
+//         memset(returnData, 0, sizeof(&returnData));
+//       }
+//       free(returnData);
+//       close(pipeFD[0]);
+//     } else {
+//       waitpid(child, NULL, 0);
+//     }
+//     // freeArgumentList();
+//     argumentListPtr = 0;
+//     argCount = 0;
+//     signal(SIGINT, cleanup);
+//   }
+// }
