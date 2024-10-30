@@ -28,7 +28,7 @@ void setupHelper();
 void parseCommand();
 void freeCommand(int wasError);
 void childSignalHandler(int signum);
-// int newStdout = 4;
+void* fetchHistory(int direction);
 static inline void changeDirectory(char *newDirectory);
 static inline char *getHomeDirectory();
 static inline void returnHome(char *homeDirectory);
@@ -59,6 +59,7 @@ typedef struct {
   argument *args;
   int argumentCount;
 } input;
+
 
 // Used to store previous inputs for history
 typedef struct {

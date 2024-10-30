@@ -30,9 +30,11 @@ void cleanup(int signum) {
     tcsetattr(0, TCSANOW, &backup);
   write(1, "\n", 2);
   freeArgumentList();
+  #if useCurses
   endwin();
   close(pipeFD[0]);
   close(pipeFD[1]);
+  #endif
   exit(1);
 }
 void setup() {
@@ -48,15 +50,12 @@ void setup() {
   #endif
 }
 void setupCurses() {
-
   win = initscr();
-  // win =newwin(0,0,0,0);
   keypad(win, 1);
   noecho();
   setupStdoutRedirect();
 }
 void setupTerminal() {
-
   struct termios terminalSettings;
   tcgetattr(0, &terminalSettings);
   tcgetattr(0, &backup);
@@ -121,6 +120,41 @@ int main(int argc, char **argv) {
     select(nfds, &fileSet, NULL, NULL, NULL);
     if (FD_ISSET(0, &fileSet)) {
       ssize_t bytesIn = read(0, readHere, bufferSize);
+      // printf("Buffer size is %lu\n", bytesIn);
+      switch(bytesIn){
+        case(0):
+        continue;
+        case(3):
+          if(readHere[0] ==27 && readHere[1]==91){
+            if(readHere[2]==65){
+              void* histVal = fetchHistory(1);
+              if(histVal==0) goto parse;
+              input history = *(input*)histVal;
+              for(int i = 0; i<history.argumentCount; i++){
+                printf("%s ", history.args[i]);
+              }
+              // printf("\n");
+              //up arrow
+            }else if(readHere[2]==66){
+                void* histVal = fetchHistory(0);
+              if(histVal==0) goto parse;
+              input history = *(input*)histVal;
+              // printf("Down arrow pressed!\n");
+              //down arrow
+            }else{
+              goto parse;
+            }
+          }
+          continue;
+          // printf("Key presses were %d %d %d\n", readHere[0],readHere[1],readHere[2]);
+        case(1):
+          goto parse;
+        case(-1):
+          write(2, "Error occured! Exiting\n", 24);
+          cleanup(1);
+          exit(1);
+      }
+      parse:
       if (bytesIn > 0 && readHere[0] != 9)
         write(1, &readHere[0], 1); // Echoing user input
       if (readHere[0] == 9) {
@@ -130,7 +164,6 @@ int main(int argc, char **argv) {
           write(1, "\b \b", 4);
           bufferedText[--inputLength] = '\0';
         }
-
       } else if (strcmp(readHere, "\n") == 0) { // If input is a newline
         strcat(bufferedText, readHere);
         inputLength += bytesIn;

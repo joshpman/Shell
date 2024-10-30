@@ -2,7 +2,7 @@
 
 command *commandHolder;
 previousInputs *p;
-
+int historyPos = -1;
 // Globals for managing exec's and signals
 sig_atomic_t action = 0;
 int childPID;
@@ -29,7 +29,23 @@ void setupHelper() {
   pInit = 2;
 }
 
-
+void *fetchHistory(int direction) {
+  if (historyPos == -1)
+    historyPos = p->commandCount;
+  if (direction == 1) {
+    if (historyPos == 0)
+      return 0;
+    historyPos--;
+    return ((void *)&p->entries[historyPos]);
+  } else if (direction == 0) {
+    if (historyPos == p->commandCount - 1)
+      return 0;
+    historyPos++;
+    return ((void *)&p->entries[historyPos]);
+  } else {
+    return 0;
+  }
+}
 void executeCommand() {
 
   command currentEntry = commandHolder[0];
@@ -144,6 +160,7 @@ void executeCommand() {
   dup2(stdinBackup, 0);
   dup2(stdoutBackup, 1);
   freeCommand(-1);
+  historyPos = -1;
 }
 
 void childSignalHandler(int signum) {
