@@ -6,7 +6,9 @@
 char *readHere;
 struct termios backup;
 int memAll, termSet = 0;
+  char bufferedText[512];
 int newStdout = 4;
+int inputLength = 0;
 WINDOW *win;
 int pipeFD[2];
 void checkStdout(){
@@ -37,6 +39,15 @@ void cleanup(int signum) {
   #endif
   exit(1);
 }
+
+void cleanTerminal(){
+  memset(readHere, 0, bufferSize);
+  memset(bufferedText, 0, sizeof(bufferedText));
+  write(1, "\n", 2);
+  resetHistory();
+  inputLength = 0;
+  writeHeader();
+}
 void setup() {
   readHere = malloc(sizeof(char) * bufferSize);
   memAll = 1;
@@ -48,6 +59,16 @@ void setup() {
   #else
   setupHelper();
   #endif
+}
+void writeBackspace(int count){
+  char* backspace = "\b \b";
+  char backspaceBuffer[1024];
+  memset(backspaceBuffer, 0, sizeof(backspaceBuffer));
+  for(int i = 0; i<count; i++){
+    strcat(backspaceBuffer, backspace);
+  }
+  strcat(backspaceBuffer, "\0");
+  write(1, backspaceBuffer, strlen(backspaceBuffer));
 }
 void setupCurses() {
   win = initscr();
@@ -66,14 +87,13 @@ void setupTerminal() {
   termSet = 1;
 }
 int main(int argc, char **argv) {
-
-  signal(SIGINT, cleanup);
+  // sigaction(SIGINT, NULL, NULL);
+  signal(SIGINT, cleanTerminal);
   signal(SIGSEGV, cleanup);
   int nfds = 1;
   fd_set fileSet;
-  char bufferedText[512];
+
   memset(bufferedText, 0, sizeof(bufferedText));
-  int inputLength = 0;
   setup();
   writeHeader();
   int key = 0;
@@ -128,19 +148,36 @@ int main(int argc, char **argv) {
           if(readHere[0] ==27 && readHere[1]==91){
             if(readHere[2]==65){
               void* histVal = fetchHistory(1);
-              if(histVal==0) goto parse;
+              if(histVal==0) continue;
+              writeBackspace(inputLength);
               input history = *(input*)histVal;
+                            memset(bufferedText, 0, sizeof(bufferedText));
               for(int i = 0; i<history.argumentCount; i++){
-                printf("%s ", history.args[i]);
+               strcat(bufferedText, history.args[i]);
               }
-              // printf("\n");
-              //up arrow
+              bufferedText[strlen(bufferedText)] = '\0';
+              inputLength = strlen(bufferedText);
+              write(1, bufferedText, strlen(bufferedText));
+              
+
             }else if(readHere[2]==66){
-                void* histVal = fetchHistory(0);
-              if(histVal==0) goto parse;
+              void* histVal = fetchHistory(0);
+              if(histVal==0){
+                writeBackspace(inputLength);
+                inputLength = 0;
+                resetHistory();
+                continue;
+              }
+                            writeBackspace(inputLength);
               input history = *(input*)histVal;
-              // printf("Down arrow pressed!\n");
-              //down arrow
+               memset(bufferedText, 0, sizeof(bufferedText));
+              for(int i = 0; i<history.argumentCount; i++){
+                // printf("%s ", history.args[i]);
+               strcat(bufferedText, history.args[i]);
+              }
+              bufferedText[strlen(bufferedText)] = '\0';
+              inputLength = strlen(bufferedText);
+              write(1, bufferedText, strlen(bufferedText));
             }else{
               goto parse;
             }

@@ -20,6 +20,9 @@ int commandHolderInit = -1;
 int commandHolderEntriesUsed = 0;
 int commandsToExecute = 1;
 
+void resetHistory(){
+  historyPos = p->commandCount;
+}
 void setupHelper() {
   p = malloc(sizeof(previousInputs));
   p->maxCommands = historySize;
@@ -50,7 +53,7 @@ void executeCommand() {
 
   command currentEntry = commandHolder[0];
   argument *arguments = currentEntry.arguments;
-
+  // printf("Arguments at 0 has %s\n", currentEntry.arguments[0]);
   // CD is a fake command so we have to catch it here and use chdir
   if (strcmp(arguments[0], "cd") == 0) {
     if (currentEntry.argumentCount == 1) {
@@ -152,7 +155,7 @@ void executeCommand() {
     }
     signal(SIGINT, childSignalHandler);
     wait(NULL);
-    signal(SIGINT, cleanup);
+    signal(SIGINT, cleanTerminal);
     if (action == 1)
       break;
     i++;

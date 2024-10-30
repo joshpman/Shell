@@ -29,6 +29,8 @@ void parseCommand();
 void freeCommand(int wasError);
 void childSignalHandler(int signum);
 void* fetchHistory(int direction);
+void cleanTerminal();
+void resetHistory();
 static inline void changeDirectory(char *newDirectory);
 static inline char *getHomeDirectory();
 static inline void returnHome(char *homeDirectory);
