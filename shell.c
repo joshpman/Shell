@@ -2,11 +2,27 @@
 #include "shell.h"
 #include <curses.h>
 #include <ncurses.h>
+#define useCurses 0
 char *readHere;
 struct termios backup;
 int memAll, termSet = 0;
+int newStdout = 4;
 WINDOW *win;
-
+int pipeFD[2];
+void checkStdout(){
+  char readBuf[4096];
+  ssize_t bytesIn = 0;
+  while((bytesIn=read(1, readBuf, 4096))>0){
+    readBuf[bytesIn] = '\0';
+    waddstr(win, readBuf);
+    wrefresh(win);
+  }
+}
+void setupStdoutRedirect(){
+  pipe(pipeFD);
+  fcntl(pipeFD[0], F_SETFL, O_NONBLOCK);
+  dup2(pipeFD[1], newStdout);
+}
 void cleanup(int signum) {
   if (memAll)
     free(readHere);
@@ -15,6 +31,8 @@ void cleanup(int signum) {
   write(1, "\n", 2);
   freeArgumentList();
   endwin();
+  close(pipeFD[0]);
+  close(pipeFD[1]);
   exit(1);
 }
 void setup() {
@@ -23,8 +41,11 @@ void setup() {
   char *userDir = getHomeDirectory();
   returnHome(userDir);
   setupTerminal();
-  // setupCurses();
+  #if useCurses == 1
+  setupCurses();
+  #else
   setupHelper();
+  #endif
 }
 void setupCurses() {
 
@@ -32,6 +53,7 @@ void setupCurses() {
   // win =newwin(0,0,0,0);
   keypad(win, 1);
   noecho();
+  setupStdoutRedirect();
 }
 void setupTerminal() {
 
@@ -56,21 +78,24 @@ int main(int argc, char **argv) {
   setup();
   writeHeader();
   int key = 0;
-  while (0) {
+  #if useCurses
+  while (1) {
     key = getch();
+              checkStdout();
     switch (key) {
     case (-1):
       continue;
     case (10):
       // mvprintw(0,0,"Clicked enter\n");
-      mvprintw(0, 0, "Processing command %s\n", bufferedText);
-      // processCommand(bufferedText, inputLength);
+      // mvprintw(0, 0, "Processing command %s\n", bufferedText);
+      processCommand(bufferedText, inputLength);
       writeHeader();
       inputLength = 0;
       memset(bufferedText, 0, sizeof(bufferedText));
+
       break;
     case (KEY_UP):
-      mvprintw(0, 0, "Up arrow pressed\n");
+      // mvprintw(0, 0, "Up arrow pressed\n");
       break;
     case (KEY_DOWN):
 
@@ -84,8 +109,11 @@ int main(int argc, char **argv) {
       // mvprintw(0,0,"Key press was %d", key);
       bufferedText[inputLength++] = key;
       waddch(win, key);
+      wrefresh(win);
     }
+
   }
+  #else
   while (1) {
     memset(readHere, 0, bufferSize);
     FD_ZERO(&fileSet);
@@ -119,4 +147,5 @@ int main(int argc, char **argv) {
     };
   }
   free(readHere);
+  #endif
 }

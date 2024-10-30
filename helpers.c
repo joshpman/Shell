@@ -29,6 +29,7 @@ void setupHelper() {
   pInit = 2;
 }
 
+
 void executeCommand() {
 
   command currentEntry = commandHolder[0];

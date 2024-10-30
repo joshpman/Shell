@@ -9,7 +9,6 @@
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
-
 #define maxSubArgs 8
 #define shellHeader "[My-Shell] "
 #define historySize 128
@@ -29,6 +28,7 @@ void setupHelper();
 void parseCommand();
 void freeCommand(int wasError);
 void childSignalHandler(int signum);
+// int newStdout = 4;
 static inline void changeDirectory(char *newDirectory);
 static inline char *getHomeDirectory();
 static inline void returnHome(char *homeDirectory);
