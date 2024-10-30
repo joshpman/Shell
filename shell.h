@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
+
 #define maxSubArgs 8
 #define shellHeader "[My-Shell] "
 #define historySize 128
@@ -16,6 +17,7 @@
 #define maxCommandChain 8
 #define bufferSize 8192
 void freeArgumentList();
+void setupCurses();
 void setupTerminal();
 void autocomplete(char *readHere, int inputLength);
 void cleanup(int signum);
